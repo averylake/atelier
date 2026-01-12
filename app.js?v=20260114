@@ -1,0 +1,2267 @@
+/**
+ * THE KANDINSKY ATELIER - IMMERSIVE EXPERIENCE
+ * Main application logic with scroll animations and particle system
+ */
+
+// ===== IN-APP BROWSER DETECTION =====
+const INAPP_RE = /Instagram|FBAN|FBAV|TikTok|Line|WeChat|wv|; wv\)/i;
+const isInApp = INAPP_RE.test(navigator.userAgent || "");
+if (isInApp) {
+    document.getElementById('inapp-gate').classList.add('active');
+
+    // Copy link handler
+    document.getElementById('btn-copy-link').onclick = async () => {
+        try {
+            await navigator.clipboard.writeText(location.href);
+            document.getElementById('btn-copy-link').textContent = 'COPIED!';
+            setTimeout(() => document.getElementById('btn-copy-link').textContent = 'COPY LINK', 1500);
+        } catch {
+            alert('Copy failed. Please manually copy the URL from the address bar.');
+        }
+    };
+
+    // Open in browser handler  
+    document.getElementById('btn-open-browser').onclick = () => {
+        window.open(location.href, '_blank', 'noopener');
+    };
+}
+
+// ===== STATE =====
+const state = {
+    color: null,
+    shape: null,
+    number: null,
+    zodiac: null,
+    currentSection: 'hero', // hero, colors, shapes, numbers, zodiac, result
+    unlockedSections: ['hero'], // Track which sections user can access
+    isTransitioning: false // Prevent double-clicks during transitions
+};
+
+// ===== PARTICLE SYSTEM =====
+const canvas = document.getElementById('particle-canvas');
+const ctx = canvas.getContext('2d');
+let particles = [];
+let mouseParticles = [];
+
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+class Particle {
+    constructor(x, y, color = null) {
+        this.x = x || Math.random() * canvas.width;
+        this.y = y || Math.random() * canvas.height;
+        this.vx = (Math.random() - 0.5) * 0.5;
+        this.vy = (Math.random() - 0.5) * 0.5;
+        this.size = Math.random() * 2 + 1;
+        this.alpha = Math.random() * 0.5 + 0.3;
+        this.color = color || `hsl(${Math.random() * 360}, 70%, 60%)`;
+        this.life = 1;
+        this.decay = Math.random() * 0.005 + 0.002;
+    }
+
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.life -= this.decay;
+
+        if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+        if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+    }
+
+    draw() {
+        ctx.globalAlpha = this.alpha * this.life;
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+    }
+}
+
+// Initialize particles
+for (let i = 0; i < 100; i++) {
+    particles.push(new Particle());
+}
+
+function animateParticles() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Update and draw background particles
+    particles = particles.filter(p => p.life > 0);
+    particles.forEach(p => {
+        p.update();
+        p.draw();
+    });
+
+    // Add new particles if needed
+    while (particles.length < 100) {
+        particles.push(new Particle());
+    }
+
+    // Mouse particles
+    mouseParticles = mouseParticles.filter(p => p.life > 0);
+    mouseParticles.forEach(p => {
+        p.update();
+        p.draw();
+    });
+
+    requestAnimationFrame(animateParticles);
+}
+animateParticles();
+
+// Create particle explosion on mouse move
+let lastParticleTime = 0;
+document.addEventListener('mousemove', (e) => {
+    const now = Date.now();
+    if (now - lastParticleTime > 50) {
+        for (let i = 0; i < 3; i++) {
+            mouseParticles.push(new Particle(e.clientX, e.clientY));
+        }
+        lastParticleTime = now;
+    }
+});
+
+// ===== SCROLL ANIMATIONS =====
+const observerOptions = {
+    threshold: 0.2,
+    rootMargin: '0px 0px -100px 0px'
+};
+
+const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+        }
+    });
+}, observerOptions);
+
+// Observe all animatable elements
+document.querySelectorAll('.section-title, .color-orb, .shape-container, .number-item, .zodiac-item').forEach(el => {
+    observer.observe(el);
+});
+
+// ===== POPULATE GRIDS =====
+
+function populateColors() {
+    const grid = document.getElementById('color-grid');
+    const colorKeys = Object.keys(COLORS);
+
+    colorKeys.forEach((key, index) => {
+        const color = COLORS[key];
+        const orb = document.createElement('div');
+        orb.className = 'color-orb';
+        orb.style.background = `radial-gradient(circle at 30% 30%, ${lighten(color.hex, 20)}, ${color.hex})`;
+        orb.style.transitionDelay = `${index * 0.05}s`;
+
+        orb.addEventListener('click', () => selectColor(key, orb));
+        orb.addEventListener('mouseenter', () => {
+            playColorSound(key);
+            createColorExplosion(orb, color.hex);
+        });
+
+        observer.observe(orb);
+        grid.appendChild(orb);
+    });
+}
+
+function populateShapes() {
+    const grid = document.getElementById('shape-grid');
+    const shapeKeys = Object.keys(SHAPES);
+
+    shapeKeys.forEach((key, index) => {
+        const container = document.createElement('div');
+        container.className = 'shape-container';
+        container.style.transitionDelay = `${index * 0.05}s`;
+
+        const canvas = document.createElement('canvas');
+        canvas.className = 'shape-canvas';
+        canvas.width = 150;
+        canvas.height = 150;
+
+        drawShapePreview(canvas, key);
+
+        container.appendChild(canvas);
+        container.addEventListener('click', () => selectShape(key, container));
+        container.addEventListener('mouseenter', () => createShapeParticles(container));
+
+        observer.observe(container);
+        grid.appendChild(container);
+    });
+}
+
+function populateNumbers() {
+    const grid = document.getElementById('number-grid');
+
+    for (let i = 1; i <= 12; i++) {
+        const item = document.createElement('div');
+        item.className = 'number-item';
+        item.textContent = i;
+        item.style.transitionDelay = `${i * 0.03}s`;
+
+        item.addEventListener('click', () => selectNumber(i, item));
+        item.addEventListener('mouseenter', () => createNumberPulse(item));
+
+        observer.observe(item);
+        grid.appendChild(item);
+    }
+}
+
+function populateZodiac() {
+    const grid = document.getElementById('zodiac-grid');
+    const zodiacKeys = Object.keys(ZODIAC);
+
+    zodiacKeys.forEach((key, index) => {
+        const zodiac = ZODIAC[key];
+        const item = document.createElement('div');
+        item.className = 'zodiac-item';
+        item.style.transitionDelay = `${index * 0.05}s`;
+
+        const symbol = document.createElement('div');
+        symbol.className = 'zodiac-symbol';
+        symbol.textContent = zodiac.symbol;
+
+        const name = document.createElement('div');
+        name.className = 'zodiac-name';
+        name.textContent = zodiac.name;
+
+        item.appendChild(symbol);
+        item.appendChild(name);
+
+        item.addEventListener('click', () => selectZodiac(key, item));
+        item.addEventListener('mouseenter', () => createZodiacStars(item));
+
+        observer.observe(item);
+        grid.appendChild(item);
+    });
+}
+
+// ===== SELECTION HANDLERS =====
+
+function selectColor(key, element) {
+    state.color = key;
+    document.querySelectorAll('.color-orb').forEach(orb => orb.classList.remove('selected'));
+    element.classList.add('selected');
+    playColorSound(key);
+    createMassiveExplosion(element, COLORS[key].hex);
+    setTimeout(() => smoothScrollToSection('shape'), 800);
+}
+
+function selectShape(key, element) {
+    state.shape = key;
+    document.querySelectorAll('.shape-container').forEach(shape => shape.classList.remove('selected'));
+    element.classList.add('selected');
+    createShapeExplosion(element);
+    setTimeout(() => smoothScrollToSection('number'), 800);
+}
+
+function selectNumber(num, element) {
+    state.number = num;
+    document.querySelectorAll('.number-item').forEach(item => item.classList.remove('selected'));
+    element.classList.add('selected');
+    createNumberExplosion(element);
+    setTimeout(() => smoothScrollToSection('zodiac'), 800);
+}
+
+function selectZodiac(key, element) {
+    state.zodiac = key;
+    document.querySelectorAll('.zodiac-item').forEach(item => item.classList.remove('selected'));
+    element.classList.add('selected');
+    createConstellationEffect(element);
+
+    // Close legend panel if open (user has finished selection journey)
+    document.getElementById('legend-panel').classList.remove('active');
+
+    setTimeout(() => generateFinalArtwork(), 1000);
+}
+
+// ===== PARTICLE EFFECTS =====
+
+function createColorExplosion(element, color) {
+    const rect = element.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    for (let i = 0; i < 15; i++) {
+        const angle = (Math.PI * 2 * i) / 15;
+        const velocity = 3 + Math.random() * 2;
+        const particle = new Particle(centerX, centerY, color);
+        particle.vx = Math.cos(angle) * velocity;
+        particle.vy = Math.sin(angle) * velocity;
+        particle.size = 3 + Math.random() * 3;
+        mouseParticles.push(particle);
+    }
+}
+
+function createMassiveExplosion(element, color) {
+    const rect = element.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    for (let i = 0; i < 100; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const velocity = 5 + Math.random() * 5;
+        const particle = new Particle(centerX, centerY, color);
+        particle.vx = Math.cos(angle) * velocity;
+        particle.vy = Math.sin(angle) * velocity;
+        particle.size = 2 + Math.random() * 4;
+        particle.decay = 0.01;
+        mouseParticles.push(particle);
+    }
+}
+
+function createShapeParticles(element) {
+    const rect = element.getBoundingClientRect();
+    for (let i = 0; i < 5; i++) {
+        const x = rect.left + Math.random() * rect.width;
+        const y = rect.top + Math.random() * rect.height;
+        mouseParticles.push(new Particle(x, y, '#00D9FF'));
+    }
+}
+
+function createShapeExplosion(element) {
+    const rect = element.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    for (let i = 0; i < 50; i++) {
+        mouseParticles.push(new Particle(centerX, centerY, '#FFD700'));
+    }
+}
+
+function createNumberPulse(element) {
+    const rect = element.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    for (let i = 0; i < 10; i++) {
+        const angle = (Math.PI * 2 * i) / 10;
+        const particle = new Particle(centerX, centerY, '#FF0080');
+        particle.vx = Math.cos(angle) * 2;
+        particle.vy = Math.sin(angle) * 2;
+        mouseParticles.push(particle);
+    }
+}
+
+function createNumberExplosion(element) {
+    const rect = element.getBoundingClientRect();
+    for (let i = 0; i < 60; i++) {
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + rect.height / 2;
+        mouseParticles.push(new Particle(x, y, '#00D9FF'));
+    }
+}
+
+function createZodiacStars(element) {
+    const rect = element.getBoundingClientRect();
+    for (let i = 0; i < 8; i++) {
+        const x = rect.left + Math.random() * rect.width;
+        const y = rect.top + Math.random() * rect.height;
+        const particle = new Particle(x, y, '#FFFFFF');
+        particle.size = 2;
+        mouseParticles.push(particle);
+    }
+}
+
+function createConstellationEffect(element) {
+    const rect = element.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    for (let i = 0; i < 80; i++) {
+        const particle = new Particle(centerX, centerY, '#FFFFFF');
+        particle.size = 1 + Math.random() * 3;
+        mouseParticles.push(particle);
+    }
+}
+
+// ===== HELPERS =====
+
+function lighten(hex, percent) {
+    const num = parseInt(hex.replace('#', ''), 16);
+    const amt = Math.round(2.55 * percent);
+    const R = (num >> 16) + amt;
+    const G = (num >> 8 & 0x00FF) + amt;
+    const B = (num & 0x0000FF) + amt;
+    return '#' + (0x1000000 + (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
+        (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
+        (B < 255 ? B < 1 ? 0 : B : 255))
+        .toString(16).slice(1);
+}
+
+function smoothScrollToSection(sectionName) {
+    // Map section names to data-section values
+    const sectionMap = {
+        'color': 'colors',
+        'shape': 'shapes',
+        'number': 'numbers',
+        'zodiac': 'zodiac'
+    };
+
+    const targetSection = sectionMap[sectionName] || sectionName;
+    const element = document.querySelector(`[data-section="${targetSection}"]`);
+
+    if (element) {
+        // Show the target section
+        element.style.display = '';
+
+        // Scroll to it
+        setTimeout(() => {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
+    }
+}
+
+// Draw shape preview with all 12 biomorphic forms
+function drawShapePreview(canvas, shapeKey) {
+    const ctx = canvas.getContext('2d');
+    const size = 80;
+    const x = 75;
+    const y = 75;
+
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+
+    switch (shapeKey) {
+        case 'cell':
+            ctx.beginPath();
+            ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(x + size / 6, y - size / 6, size / 6, 0, Math.PI * 2);
+            ctx.fill();
+            break;
+
+        case 'amoeba':
+            ctx.beginPath();
+            for (let i = 0; i <= 8; i++) {
+                const angle = (i / 8) * Math.PI * 2;
+                const r = (size / 2) * (0.7 + Math.sin(i) * 0.3);
+                const px = x + Math.cos(angle) * r;
+                const py = y + Math.sin(angle) * r;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            break;
+
+        case 'pod':
+            ctx.beginPath();
+            ctx.ellipse(x, y, size / 3, size / 2, Math.PI / 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            break;
+
+        case 'tendril':
+            ctx.beginPath();
+            ctx.moveTo(x - size / 2, y + size / 2);
+            ctx.quadraticCurveTo(x, y - size / 2, x + size / 2, y);
+            ctx.lineWidth = 4;
+            ctx.stroke();
+            break;
+
+        case 'blob':
+            ctx.beginPath();
+            ctx.moveTo(x + size / 2, y);
+            ctx.bezierCurveTo(x + size / 2, y - size / 3, x + size / 4, y - size / 2, x, y - size / 2);
+            ctx.bezierCurveTo(x - size / 4, y - size / 2, x - size / 2, y - size / 3, x - size / 2, y);
+            ctx.bezierCurveTo(x - size / 2, y + size / 3, x - size / 4, y + size / 2, x, y + size / 2);
+            ctx.bezierCurveTo(x + size / 4, y + size / 2, x + size / 2, y + size / 3, x + size / 2, y);
+            ctx.fill();
+            ctx.stroke();
+            break;
+
+        case 'nucleus':
+            ctx.beginPath();
+            ctx.arc(x, y, size / 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            for (let i = 0; i < 4; i++) {
+                const angle = (i / 4) * Math.PI * 2;
+                ctx.beginPath();
+                ctx.arc(x + Math.cos(angle) * size / 2.2, y + Math.sin(angle) * size / 2.2, size / 12, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            break;
+
+        case 'membrane':
+            ctx.beginPath();
+            ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(x, y, size / 3, 0, Math.PI * 2);
+            ctx.stroke();
+            break;
+
+        case 'spore':
+            ctx.beginPath();
+            ctx.arc(x, y - size / 4, size / 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.quadraticCurveTo(x + size / 6, y + size / 3, x, y + size / 2);
+            ctx.stroke();
+            break;
+
+        case 'cyst':
+            ctx.globalAlpha = 0.7;
+            ctx.beginPath();
+            ctx.ellipse(x, y, size / 2.2, size / 2.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            ctx.stroke();
+            break;
+
+        case 'embryo':
+            ctx.beginPath();
+            ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(x - size / 8, y, size / 3, 0, Math.PI * 2);
+            ctx.stroke();
+            break;
+
+        case 'flagellum':
+            ctx.beginPath();
+            ctx.moveTo(x - size / 2, y);
+            ctx.bezierCurveTo(x - size / 4, y - size / 3, x, y + size / 3, x + size / 4, y);
+            ctx.bezierCurveTo(x + size / 3, y - size / 4, x + size / 2, y + size / 4, x + size / 2, y);
+            ctx.lineWidth = 4;
+            ctx.stroke();
+            break;
+
+        case 'chromosome':
+            ctx.beginPath();
+            ctx.moveTo(x - size / 3, y - size / 3);
+            ctx.quadraticCurveTo(x, y, x + size / 3, y + size / 3);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x + size / 3, y - size / 3);
+            ctx.quadraticCurveTo(x, y, x - size / 3, y + size / 3);
+            ctx.stroke();
+            break;
+
+        default:
+            ctx.beginPath();
+            ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+    }
+}
+
+// ===== GENERATE FINAL ARTWORK =====
+
+function generateFinalArtwork() {
+    // Generate deterministic artifact ID
+    state.artifactID = getArtifactID();
+
+    // Hide all sections and show result
+    document.querySelectorAll('section').forEach(s => s.style.display = 'none');
+    document.getElementById('result-section').style.display = 'flex';
+
+    // Update artifact title with hash
+    const titleEl = document.getElementById('artwork-title');
+    if (titleEl) {
+        titleEl.textContent = `Atelier K ${state.artifactID}`;
+    }
+
+    // Scroll to result
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // Generate artwork
+    setTimeout(() => {
+        const analysis = analyzeSelections(state.color, state.shape, state.number, state.zodiac);
+        const finalCanvas = document.getElementById('final-canvas');
+        const generator = new KandinskyGenerator(finalCanvas, analysis);
+        generator.generate();
+
+        playGenerationSound(state.color);
+
+        // Hide legend button (user is done with journey)
+        document.getElementById('legend-toggle').style.display = 'none';
+
+        // Populate live editor instead of data panel immediately
+        populateLiveEditors();
+
+        setTimeout(() => {
+            finalCanvas.classList.add('visible');
+        }, 200);
+    }, 500);
+}
+
+// ===== ACTIONS =====
+
+function downloadArtwork() {
+    // Create a separate canvas for print-ready export (white border only, no black frame)
+    const printCanvas = document.createElement('canvas');
+    printCanvas.width = 1800;
+    printCanvas.height = 1200;
+
+    // Generate print version using the generator with printMode flag
+    const analysis = analyzeSelections(state.color, state.shape, state.number, state.zodiac);
+    const generator = new KandinskyGenerator(printCanvas, analysis);
+    generator.generateForPrint(); // This will skip the black frame
+
+    // Download the print-ready version
+    const link = document.createElement('a');
+    link.download = `Atelier-K-${state.artifactID}-by-Avery-Lake-PRINT.png`;
+    link.href = printCanvas.toDataURL('image/png');
+    link.click();
+}
+
+function reset() {
+    state.color = null;
+    state.shape = null;
+    state.number = null;
+    state.zodiac = null;
+
+    document.querySelectorAll('section').forEach(s => s.style.display = '');
+    document.getElementById('result-section').style.display = 'none';
+    document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+
+    // Hide legend button (will show when user reaches colors section)
+    document.getElementById('legend-toggle').style.display = 'none';
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ===== LEGEND =====
+
+let currentLegendContext = 'colors';
+
+function toggleLegend() {
+    const panel = document.getElementById('legend-panel');
+    panel.classList.toggle('active');
+}
+
+function updateLegendContext(context) {
+    currentLegendContext = context;
+    const button = document.getElementById('legend-toggle');
+
+    const labels = {
+        colors: 'COLORS',
+        shapes: 'FORMS',
+        numbers: 'NUMBERS',
+        zodiac: 'SIGNS'
+    };
+
+    button.textContent = labels[context] || 'LEGEND';
+    populateLegend(context);
+}
+
+function populateLegend(context = 'colors') {
+    const content = document.getElementById('legend-content');
+    let html = '';
+
+    if (context === 'colors') {
+        html += '<div class="legend-section">';
+        html += '<div class="legend-section-title">12 Spiritual Colors</div>';
+        Object.keys(COLORS).forEach(key => {
+            const color = COLORS[key];
+            html += `<div class="legend-item">
+                <div class="legend-color" style="background: ${color.hex}"></div>
+                <div>
+                    <div class="legend-label">${color.name}</div>
+                    <div class="legend-value">${color.sound}</div>
+                </div>
+            </div>`;
+        });
+        html += '</div>';
+    } else if (context === 'shapes') {
+        html += '<div class="legend-section">';
+        html += '<div class="legend-section-title">12 Biomorphic Forms</div>';
+        Object.keys(SHAPES).forEach(key => {
+            const shape = SHAPES[key];
+            html += `<div class="legend-item">
+                <div>
+                    <div class="legend-label">${shape.name}</div>
+                    <div class="legend-value">${shape.meaning}</div>
+                </div>
+            </div>`;
+        });
+        html += '</div>';
+    } else if (context === 'numbers') {
+        html += '<div class="legend-section">';
+        html += '<div class="legend-section-title">12 Sacred Numbers</div>';
+        for (let i = 1; i <= 12; i++) {
+            html += `<div class="legend-item">
+                <div>
+                    <div class="legend-label">Number ${i}</div>
+                    <div class="legend-value">Essential numerology</div>
+                </div>
+            </div>`;
+        }
+        html += '</div>';
+    } else if (context === 'zodiac') {
+        html += '<div class="legend-section">';
+        html += '<div class="legend-section-title">12 Zodiac Constellations</div>';
+        Object.keys(ZODIAC).forEach(key => {
+            const zodiac = ZODIAC[key];
+            html += `<div class="legend-item">
+                <div>
+                    <div class="legend-label">${zodiac.symbol} ${zodiac.name}</div>
+                    <div class="legend-value">${zodiac.element}</div>
+                </div>
+            </div>`;
+        });
+        html += '</div>';
+    }
+
+    content.innerHTML = html;
+}
+
+// Toggle section-specific legend (for section legend buttons)
+function toggleSectionLegend(section) {
+    const legendIds = {
+        'color': 'color-legend',
+        'shape': 'shape-legend',
+        'number': 'number-legend',
+        'zodiac': 'zodiac-legend'
+    };
+
+    const legendId = legendIds[section];
+    if (!legendId) return;
+
+    const legend = document.getElementById(legendId);
+    if (!legend) return;
+
+    const btn = event.target;
+
+    if (legend.style.display === 'none' || legend.style.display === '') {
+        legend.style.display = 'block';
+
+        // Populate the legend content
+        let html = '';
+        if (section === 'color') {
+            html = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px;">';
+            Object.keys(COLORS).forEach(key => {
+                const c = COLORS[key];
+                html += `<div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 24px; height: 24px; border-radius: 50%; background: ${c.hex};"></div>
+                    <div><strong>${c.name}</strong><br><span style="font-size: 0.75rem; opacity: 0.7;">${c.sound}</span></div>
+                </div>`;
+            });
+            html += '</div>';
+        } else if (section === 'shape') {
+            html = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px;">';
+            Object.keys(SHAPES).forEach(key => {
+                const s = SHAPES[key];
+                html += `<div><strong>${s.name}</strong><br><span style="font-size: 0.75rem; opacity: 0.7;">${s.meaning}</span></div>`;
+            });
+            html += '</div>';
+        } else if (section === 'number') {
+            html = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; text-align: center;">';
+            for (let i = 1; i <= 12; i++) {
+                html += `<div><strong>${i}</strong></div>`;
+            }
+            html += '</div>';
+        } else if (section === 'zodiac') {
+            html = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px;">';
+            Object.keys(ZODIAC).forEach(key => {
+                const z = ZODIAC[key];
+                html += `<div><strong>${z.symbol} ${z.name}</strong><br><span style="font-size: 0.75rem; opacity: 0.7;">${z.element}</span></div>`;
+            });
+            html += '</div>';
+        }
+        legend.innerHTML = html;
+
+        if (btn) btn.innerHTML = '▲ HIDE LEGEND';
+    } else {
+        legend.style.display = 'none';
+        if (btn) btn.innerHTML = '▼ SHOW LEGEND';
+    }
+}
+
+
+// ===== DATA GENERATION =====
+
+function generateDeterministicHash(color, shape, number, zodiac) {
+    const input = `${color}-${shape}-${number}-${zodiac}`;
+    let hash = 0;
+    for (let i = 0; i < input.length; i++) {
+        hash = ((hash << 5) - hash) + input.charCodeAt(i);
+        hash = hash & hash;
+    }
+    return `AK${Math.abs(hash).toString(36).toUpperCase().padStart(8, '0')}`;
+}
+
+function getArtifactID() {
+    if (state.color && state.shape && state.number && state.zodiac) {
+        return generateDeterministicHash(state.color, state.shape, state.number, state.zodiac);
+    }
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substr(2, 9).toUpperCase();
+    return `AK-${timestamp}-${random}`;
+}
+
+function populateDataPanel(analysis) {
+    const panel = document.getElementById('data-panel');
+    if (!panel) return;
+
+    const harmonyPercent = analysis.harmony;
+
+    panel.innerHTML = `
+        <h3>YOUR SELECTIONS</h3>
+        <div class="data-item">
+          <span class="data-label">Color:</span>
+          <span class="data-value">${analysis.color.name} - ${analysis.color.emotion}</span>
+        </div>
+        <div class="data-item">
+          <span class="data-label">Synesthetic Sound:</span>
+          <span class="data-value">${analysis.color.sound} (Kandinsky's color-sound connection)</span>
+        </div>
+        <div class="data-item">
+          <span class="data-label">Shape:</span>
+          <span class="data-value">${analysis.shape.name} - ${analysis.shape.meaning}</span>
+        </div>
+        <div class="data-item">
+          <span class="data-label">Number:</span>
+          <span class="data-value">${state.number} - Essential numerology</span>
+        </div>
+        <div class="data-item">
+          <span class="data-label">Zodiac:</span>
+          <span class="data-value">${analysis.zodiac.name} - ${analysis.zodiac.element}</span>
+        </div>
+
+        <h3 style="margin-top: 30px;">HARMONY ANALYSIS</h3>
+        <div class="data-item">
+          <span class="data-label">Harmony Score:</span>
+          <span class="data-value">${harmonyPercent}%</span>
+        </div>
+        <div class="harmony-bar">
+          <div class="harmony-fill" style="width: ${harmonyPercent}%;"></div>
+        </div>
+        <div class="interpretation">${analysis.meaning}</div>
+
+        <h3 style="margin-top: 30px;">ARTIFACT LEGEND</h3>
+        <div class="interpretation" style="font-style: normal; line-height: 1.8; margin-top: 16px;">
+          <strong>How your selections shaped this composition:</strong><br><br>
+          
+          <strong>${analysis.color.name}:</strong> ${analysis.color.emotion}<br>
+          • Palette: Primary color dominance (60% ${analysis.color.name.toLowerCase()} tones)<br>
+          • Temperature: ${analysis.color.temperature}<br>
+          • Synesthetic sound: ${analysis.color.sound || 'Unique resonance'}<br>
+          • Emotional quality: ${analysis.color.emotion}<br><br>
+          
+          <strong>${analysis.shape.name}:</strong> ${analysis.shape.meaning}<br>
+          • Hero element: Large ${analysis.shape.name.toLowerCase()} at golden ratio (0.382)<br>
+          • Secondary instances: 2-5 additional forms<br>
+          • Symbolic meaning: ${analysis.shape.meaning}<br>
+          • Compositional style: ${getCompositionStyle(state.shape)}<br><br>
+          
+          <strong>Number ${state.number}:</strong> Essential numerology<br>
+          • Element count: ${getElementCount(state.number)} total across 6 layers<br>
+          • Numerological quality: Sacred proportion<br>
+          • Layer distribution: Background zones, structure, heroes, forms, accents, connectors<br><br>
+          
+          <strong>${analysis.zodiac.name}:</strong> ${analysis.zodiac.element}<br>
+          • Elemental harmony: ${analysis.zodiac.element} energy<br>
+          • Planetary influence: Cosmic alignment<br>
+          • Compositional movement: ${getZodiacMovement(analysis.zodiac.element)}<br><br>
+          
+          <strong>Technical Details:</strong><br>
+          • Canvas: 1800×1200 pixels<br>
+          • Format: Horizontal landscape<br>
+          • Generation: 6-layer biomorphic system<br>
+          • Harmony Score: ${harmonyPercent}% coherence across all selections
+        </div>
+
+        <h3 style="margin-top: 30px;">ARTIFACT DETAILS</h3>
+        <div class="data-item">
+          <span class="data-label">Artifact ID:</span>
+          <span class="data-value">${state.artifactID}</span>
+        </div>
+        <div class="data-item">
+          <span class="data-label">Generated:</span>
+          <span class="data-value">${new Date().toLocaleString()}</span>
+        </div>
+        <div class="data-item">
+          <span class="data-label">System:</span>
+          <span class="data-value">ATELIER K V2.0</span>
+        </div>
+        <div class="data-item">
+          <span class="data-label">Total Combinations:</span>
+          <span class="data-value">20,736 unique pieces</span>
+        </div>
+    `;
+}
+
+function getCompositionStyle(shapeKey) {
+    const styles = {
+        'cell': 'Centered/organic',
+        'amoeba': 'Flowing/adaptive',
+        'pod': 'Enclosed/protective',
+        'tendril': 'Linear/reaching',
+        'blob': 'Amorphous/fluid',
+        'nucleus': 'Core/radial',
+        'membrane': 'Layered/permeable',
+        'spore': 'Dispersed/generative',
+        'cyst': 'Contained/dormant',
+        'embryo': 'Nested/developmental',
+        'flagellum': 'Dynamic/propulsive',
+        'chromosome': 'Paired/systematic'
+    };
+    return styles[shapeKey] || 'Dynamic/expressive';
+}
+
+function getElementCount(number) {
+    const baseCount = 60 + (number * 5);
+    return `${baseCount}-${baseCount + 30}`;
+}
+
+function getZodiacMovement(element) {
+    const movements = {
+        'Fire': 'Upward, expansive',
+        'Earth': 'Grounded, horizontal',
+        'Air': 'Scattered, flowing',
+        'Water': 'Fluid, undulating'
+    };
+    return movements[element] || 'Balanced, harmonic';
+}
+
+
+function generateDataLog() {
+    if (!state.color || !state.shape || !state.number || !state.zodiac) {
+        alert('Please complete your artwork first');
+        return;
+    }
+
+    const analysis = analyzeSelections(state.color, state.shape, state.number, state.zodiac);
+    const artifactID = state.artifactID || getArtifactID();
+    const timestamp = new Date().toLocaleString();
+
+    // Calculate specific element counts based on number selection
+    const baseCount = state.number;
+    const washCount = 2 + Math.floor(baseCount / 6);
+    const organicFormCount = 3 + Math.floor(baseCount / 4);
+    const cellCount = 12 + baseCount;
+    const connectionCount = 10 + Math.floor(baseCount * 1.5);
+    const detailCount = 20 + baseCount * 3;
+    const hatchCount = 8 + Math.floor(baseCount / 2);
+
+    let dataLog = `═══════════════════════════════════════════════════════════════
+ATELIER K: AI-Age Synesthetic Art Protocol
+ARTIFACT DATA LOG
+═══════════════════════════════════════════════════════════════
+
+ARTIFACT: ${artifactID}
+Title: Atelier K ${artifactID} by Avery Lake
+Generated: ${timestamp}
+Protocol Version: 2.0 (Intelligence Age)
+System: Deterministic Hash Generation
+
+───────────────────────────────────────────────────────────────
+USER SELECTIONS
+───────────────────────────────────────────────────────────────
+
+SPIRITUAL COLOR: ${COLORS[state.color].name}
+  - Hex Code: ${COLORS[state.color].hex}
+  - Temperature: ${COLORS[state.color].temperature}
+  - Energy: ${COLORS[state.color].energy}
+  - Synesthetic Sound: ${COLORS[state.color].sound}
+  - Emotion: ${COLORS[state.color].emotion}
+  - Element: ${COLORS[state.color].element}
+
+BIOMORPHIC FORM: ${SHAPES[state.shape].name}
+  - Meaning: ${SHAPES[state.shape].meaning}
+  - Energy: ${SHAPES[state.shape].energy}
+  - Movement: ${SHAPES[state.shape].movement}
+
+SACRED NUMBER: ${state.number}
+  - Significance: Essential numerological expression
+  - Element Count: ${getElementCount(state.number)}
+
+GUIDING CONSTELLATION: ${ZODIAC[state.zodiac].name} ${ZODIAC[state.zodiac].symbol}
+  - Element: ${ZODIAC[state.zodiac].element}
+  - Quality: ${ZODIAC[state.zodiac].quality}
+  - Ruling Planet: ${ZODIAC[state.zodiac].planet}
+
+───────────────────────────────────────────────────────────────
+SYSTEMATIC INFLUENCE MAP
+───────────────────────────────────────────────────────────────
+
+How each selection influences every composition element:
+
+LAYER 0: PAPER GRAIN TEXTURE
+  - Base: Off-white canvas (#F5F5F0)
+  - Grain intensity: Universal (all artworks)
+  - Grain line count: 200 subtle lines
+
+LAYER 1: COLOR WASHES (${washCount} washes)
+  - Primary color: ${COLORS[state.color].name} (${COLORS[state.color].hex})
+  - Opacity range: 5-10% (subtle, atmospheric)
+  - Influenced by COLOR: Determines wash hue
+  - Influenced by NUMBER: ${baseCount} affects wash count
+
+LAYER 2: LARGE ORGANIC FORMS (${organicFormCount} forms)
+  - Size range: 150-400px
+  - Influenced by COLOR: Determines form fill color
+  - Influenced by FORM: Determines ${getCompositionStyle(state.shape)} style
+  - Influenced by NUMBER: ${baseCount} affects form count
+
+LAYER 3: PRIMARY BIOMORPHIC FORMS
+  - Hero form: ${SHAPES[state.shape].name} at center (400-600px)
+  - Secondary forms: 2-3 instances (120-300px)
+  - Influenced by FORM: Exact shape type (${state.shape})
+  - Influenced by COLOR: ${COLORS[state.color].name} fill
+  - Influenced by NUMBER: ${Math.min(3, Math.max(2, Math.floor(baseCount / 3)))} secondary instances
+  - Influenced by CONSTELLATION: ${getZodiacMovement(analysis.zodiac.element)} positioning
+
+LAYER 4: CELL CLUSTERS (${cellCount} cells)
+  - Size range: 25-85px
+  - Influenced by COLOR: Multi-hue from ${COLORS[state.color].name} palette
+  - Influenced by NUMBER: ${baseCount} adds to cell count
+
+LAYER 5: ORGANIC CONNECTIONS (${connectionCount} connections)
+  - Line weight: 0.5-4.5px
+  - Influenced by COLOR: ${COLORS[state.color].name} based strokes
+  - Influenced by NUMBER: ${baseCount} affects connection density
+
+LAYER 6: MICROSCOPIC DETAILS (${detailCount} details)
+  - Radius range: 2-27px
+  - Mix of filled nuclei and outlined membranes
+  - Influenced by COLOR: Accent colors from palette
+
+LAYER 7: SCRATCHY LINES (8-20 lines)
+  - Line weight: 0.5-3px
+  - Color: Near-black (#1A1A1A)
+  - Universal expressive element
+
+LAYER 8: HATCHING DETAILS (${hatchCount} areas)
+  - Parallel line textures with optional crosshatch
+  - Influenced by COLOR: ${COLORS[state.color].name} hue
+  - Influenced by NUMBER: ${baseCount} affects hatch density
+
+LAYER 9: FINAL GRAIN OVERLAY
+  - Stippling: 3000-5000 dots
+  - Subtle vignette for depth
+  - Universal finishing layer
+
+FRAMING: WHITE MAT + BLACK FRAME
+  - White mat: 50px (passepartout)
+  - Black frame: 30px outer border
+
+───────────────────────────────────────────────────────────────
+PALETTE GENERATION
+───────────────────────────────────────────────────────────────
+
+Primary: ${COLORS[state.color].name} (${COLORS[state.color].hex}) - 60% usage
+Tint: +20% saturation, +20% lightness
+Complement: +180 degrees hue rotation
+Analogous: +30 degrees hue rotation
+Accent: +120 degrees hue rotation, 95% saturation
+
+───────────────────────────────────────────────────────────────
+COMPOSITION STYLE: ${getCompositionStyle(state.shape).toUpperCase()}
+───────────────────────────────────────────────────────────────
+
+Form "${SHAPES[state.shape].name}" produces "${getCompositionStyle(state.shape)}" layout:
+${getCompositionDescription(state.shape)}
+
+Movement Pattern: ${getZodiacMovement(analysis.zodiac.element)}
+
+───────────────────────────────────────────────────────────────
+SYNESTHETIC ANALYSIS
+───────────────────────────────────────────────────────────────
+
+PRIMARY COLOR: ${analysis.color.name} (${analysis.color.hex})
+DOMINANT FORM: ${analysis.shape.name}
+COMPLEXITY LEVEL: ${analysis.complexity}
+EMOTIONAL TONE: ${analysis.color.emotion}
+ELEMENTAL BALANCE: ${analysis.color.element} + ${analysis.zodiac.element}
+HARMONY SCORE: ${analysis.harmony}%
+
+───────────────────────────────────────────────────────────────
+DETERMINISTIC GUARANTEE
+───────────────────────────────────────────────────────────────
+
+Hash Seed: "${state.color}-${state.shape}-${state.number}-${state.zodiac}"
+Algorithm: Seeded pseudorandom number generator
+Guarantee: These exact selections will ALWAYS produce
+           this exact artwork (${artifactID}).
+
+───────────────────────────────────────────────────────────────
+TECHNICAL SPECIFICATIONS
+───────────────────────────────────────────────────────────────
+
+Canvas Dimensions: 1800 x 1200 pixels
+Color Depth: RGB (24-bit)
+Rendering: HTML5 Canvas
+Format: Digital artifact (PNG export available)
+Total Combinations: 20,736 unique pieces (12x12x12x12)
+
+───────────────────────────────────────────────────────────────
+CERTIFICATION
+───────────────────────────────────────────────────────────────
+
+This artifact is a unique co-creation between human consciousness
+and algorithmic generation, embodying Kandinsky's vision of
+spiritual art for the intelligence age.
+
+For commissioning a museum-quality archival print contact:
+hello@averylakeofficial.com with this Artifact ID.
+
+Created by Avery Lake
+═══════════════════════════════════════════════════════════════
+End of Data Log
+═══════════════════════════════════════════════════════════════`;
+
+    // Cross-platform download with multiple fallbacks
+    const filename = `Atelier-K-${artifactID}-Data-Log.txt`;
+    console.log('generateDataLog: Starting download for', filename);
+
+    try {
+        const blob = new Blob([dataLog], { type: 'text/plain;charset=utf-8' });
+
+        // Method 1: Try standard anchor download (works on most browsers)
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+
+        // Check if download attribute is supported
+        if ('download' in link) {
+            link.click();
+            setTimeout(() => {
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }, 100);
+            flashMessage('SIGNAL DATA EXPORTED');
+            console.log('Download initiated via anchor click');
+            return;
+        }
+
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        // Method 2: Try data URI approach for iOS Safari
+        console.log('Fallback: Trying data URI approach');
+        const dataUri = 'data:text/plain;charset=utf-8,' + encodeURIComponent(dataLog);
+        const a = document.createElement('a');
+        a.href = dataUri;
+        a.download = filename;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => document.body.removeChild(a), 100);
+        flashMessage('SIGNAL DATA EXPORTED');
+
+    } catch (e) {
+        console.error('Download error:', e);
+
+        // Method 3: Copy to clipboard as last resort
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(dataLog).then(() => {
+                alert('Download not supported on this device. Data log has been copied to your clipboard! Paste into Notes app to save.');
+                flashMessage('COPIED TO CLIPBOARD');
+            }).catch(() => {
+                alert('Unable to download or copy. Please take a screenshot of the data panel below.');
+            });
+        } else {
+            alert('Download not supported on this device. Please take a screenshot of the data panel below.');
+        }
+    }
+}
+
+// Helper function for composition style descriptions
+function getCompositionDescription(shapeKey) {
+    const descriptions = {
+        cell: 'Dense groupings with concentrated central areas',
+        amoeba: 'Flowing, irregular distribution across canvas',
+        pod: 'Separated clusters with breathing room between elements',
+        tendril: 'Linear connections emphasizing directional flow',
+        blob: 'Chaotic, organic distribution for dynamic tension',
+        nucleus: 'Radial arrangement emanating from center point',
+        membrane: 'Layered overlapping zones creating depth',
+        spore: 'Dispersed, spreading outward from origin points',
+        cyst: 'Isolated islands of concentration',
+        embryo: 'Nested, concentric forms building inward',
+        flagellum: 'Directional, oriented movement patterns',
+        chromosome: 'Coiled, intertwined serpentine arrangement'
+    };
+    return descriptions[shapeKey] || 'Organic, balanced distribution';
+}
+
+// ===== UTILITY FUNCTIONS =====
+
+function lighten(hex, percent) {
+    const num = parseInt(hex.replace('#', ''), 16);
+    const amt = Math.round(2.55 * percent);
+    const R = (num >> 16) + amt;
+    const G = (num >> 8 & 0x00FF) + amt;
+    const B = (num & 0x0000FF) + amt;
+    return '#' + (0x1000000 + (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
+        (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
+        (B < 255 ? B < 1 ? 0 : B : 255))
+        .toString(16).slice(1);
+}
+
+function playColorSound(colorKey) {
+    // Placeholder for sound playback
+    if (window.playGenerationSound) {
+        playGenerationSound(colorKey);
+    }
+}
+
+function drawShapePreview(canvas, shapeKey) {
+    const ctx = canvas.getContext('2d');
+    const size = 80;
+    const x = 75;
+    const y = 75;
+
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+
+    switch (shapeKey) {
+        case 'cell':
+            ctx.beginPath();
+            ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(x + size / 6, y - size / 6, size / 6, 0, Math.PI * 2);
+            ctx.fill();
+            break;
+
+        case 'amoeba':
+            ctx.beginPath();
+            for (let i = 0; i <= 8; i++) {
+                const angle = (i / 8) * Math.PI * 2;
+                const r = (size / 2) * (0.7 + Math.sin(i) * 0.3);
+                const px = x + Math.cos(angle) * r;
+                const py = y + Math.sin(angle) * r;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            break;
+
+        case 'pod':
+            ctx.beginPath();
+            ctx.ellipse(x, y, size / 3, size / 2, Math.PI / 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            break;
+
+        case 'tendril':
+            ctx.beginPath();
+            ctx.moveTo(x - size / 2, y + size / 2);
+            ctx.quadraticCurveTo(x, y - size / 2, x + size / 2, y);
+            ctx.lineWidth = 4;
+            ctx.stroke();
+            break;
+
+        case 'blob':
+            ctx.beginPath();
+            ctx.moveTo(x + size / 2, y);
+            ctx.bezierCurveTo(x + size / 2, y - size / 3, x + size / 4, y - size / 2, x, y - size / 2);
+            ctx.bezierCurveTo(x - size / 4, y - size / 2, x - size / 2, y - size / 3, x - size / 2, y);
+            ctx.bezierCurveTo(x - size / 2, y + size / 3, x - size / 4, y + size / 2, x, y + size / 2);
+            ctx.bezierCurveTo(x + size / 4, y + size / 2, x + size / 2, y + size / 3, x + size / 2, y);
+            ctx.fill();
+            ctx.stroke();
+            break;
+
+        case 'nucleus':
+            ctx.beginPath();
+            ctx.arc(x, y, size / 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            for (let i = 0; i < 4; i++) {
+                const angle = (i / 4) * Math.PI * 2;
+                ctx.beginPath();
+                ctx.arc(x + Math.cos(angle) * size / 2.2, y + Math.sin(angle) * size / 2.2, size / 12, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            break;
+
+        case 'membrane':
+            ctx.beginPath();
+            ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(x, y, size / 3, 0, Math.PI * 2);
+            ctx.stroke();
+            break;
+
+        case 'spore':
+            ctx.beginPath();
+            ctx.arc(x, y - size / 4, size / 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.quadraticCurveTo(x + size / 6, y + size / 3, x, y + size / 2);
+            ctx.stroke();
+            break;
+
+        case 'cyst':
+            ctx.globalAlpha = 0.7;
+            ctx.beginPath();
+            ctx.ellipse(x, y, size / 2.2, size / 2.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            ctx.stroke();
+            break;
+
+        case 'embryo':
+            ctx.beginPath();
+            ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(x - size / 8, y, size / 3, 0, Math.PI * 2);
+            ctx.stroke();
+            break;
+
+        case 'flagellum':
+            ctx.beginPath();
+            ctx.moveTo(x - size / 2, y);
+            ctx.bezierCurveTo(x - size / 4, y - size / 3, x, y + size / 3, x + size / 4, y);
+            ctx.bezierCurveTo(x + size / 3, y - size / 4, x + size / 2, y + size / 4, x + size / 2, y);
+            ctx.lineWidth = 4;
+            ctx.stroke();
+            break;
+
+        case 'chromosome':
+            ctx.beginPath();
+            ctx.moveTo(x - size / 3, y - size / 3);
+            ctx.quadraticCurveTo(x, y, x + size / 3, y + size / 3);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x + size / 3, y - size / 3);
+            ctx.quadraticCurveTo(x, y, x - size / 3, y + size / 3);
+            ctx.stroke();
+            break;
+
+        default:
+            ctx.beginPath();
+            ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+    }
+}
+
+
+// ==== SURVEILLANCE FEEDBACK =====
+
+function flashMessage(msg) {
+    // Create flash overlay
+    let flash = document.getElementById('system-flash');
+    if (!flash) {
+        flash = document.createElement('div');
+        flash.id = 'system-flash';
+        flash.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9);
+            color: #43E97B;
+            padding: 20px 60px;
+            font-family: monospace;
+            font-size: 14px;
+            letter-spacing: 3px;
+            z-index: 9999;
+            border: 1px solid #43E97B;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        `;
+        document.body.appendChild(flash);
+    }
+    flash.textContent = msg;
+    flash.style.opacity = '1';
+    setTimeout(() => {
+        flash.style.opacity = '0';
+    }, 600);
+}
+
+
+function populateSectionLegend(section) {
+    // Color legend
+    if (section === 'colors') {
+        const legend = document.getElementById('color-legend');
+        if (legend && legend.innerHTML === '') {
+            Object.keys(COLORS).forEach(key => {
+                const c = COLORS[key];
+                const item = document.createElement('div');
+                item.style.cssText = 'padding: 8px; background: rgba(255,255,255,0.03); border-radius: 6px; text-align: center;';
+                item.innerHTML = `<span style="display:inline-block; width:12px; height:12px; background:${c.hex}; border-radius:50%; margin-right:6px;"></span><strong>${c.name}</strong><br><span style="opacity:0.7">${c.sound}</span>`;
+                legend.appendChild(item);
+            });
+        }
+    }
+
+    // Shape legend
+    if (section === 'shapes') {
+        const legend = document.getElementById('shape-legend');
+        if (legend && legend.innerHTML === '') {
+            Object.keys(SHAPES).forEach(key => {
+                const s = SHAPES[key];
+                const item = document.createElement('div');
+                item.style.cssText = 'padding: 8px; background: rgba(255,255,255,0.03); border-radius: 6px; text-align: center;';
+                item.innerHTML = `<strong>${s.name}</strong><br><span style="opacity:0.7">${s.meaning.split(',')[0]}</span>`;
+                legend.appendChild(item);
+            });
+        }
+    }
+
+    // Number legend
+    if (section === 'numbers') {
+        const legend = document.getElementById('number-legend');
+        if (legend && legend.innerHTML === '') {
+            for (let i = 1; i <= 12; i++) {
+                const n = NUMBERS[i];
+                const item = document.createElement('div');
+                item.style.cssText = 'padding: 6px; background: rgba(255,255,255,0.03); border-radius: 6px; text-align: center;';
+                item.innerHTML = `<strong>${i}</strong> · <span style="opacity:0.7">${n.quality}</span>`;
+                legend.appendChild(item);
+            }
+        }
+    }
+
+    // Zodiac legend
+    if (section === 'zodiac') {
+        const legend = document.getElementById('zodiac-legend');
+        if (legend && legend.innerHTML === '') {
+            Object.keys(ZODIAC).forEach(key => {
+                const z = ZODIAC[key];
+                const item = document.createElement('div');
+                item.style.cssText = 'padding: 6px; background: rgba(255,255,255,0.03); border-radius: 6px; text-align: center;';
+                item.innerHTML = `${z.symbol} <strong>${z.name}</strong><br><span style="opacity:0.7">${z.element}</span>`;
+                legend.appendChild(item);
+            });
+        }
+    }
+}
+
+
+function toggleSectionLegend(type) {
+    const legend = document.getElementById(`${type}-legend`);
+    const section = legend?.closest('section');
+    const btn = section?.querySelector('.section-legend-btn');
+
+    if (!legend) {
+        console.error('Legend not found:', type);
+        return;
+    }
+
+    // Populate legend content on first open
+    if (legend.innerHTML.trim() === '') {
+        let html = '<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; font-size: 0.75rem; color: var(--text-light);">';
+
+        if (type === 'color') {
+            Object.keys(COLORS).forEach(key => {
+                const c = COLORS[key];
+                html += `<div style="padding: 12px; background: rgba(255,255,255,0.05); border-radius: 8px; text-align: center;">
+                    <span style="display:inline-block; width:16px; height:16px; background:${c.hex}; border-radius:50%; margin-bottom:6px;"></span><br>
+                    <strong>${c.name}</strong><br>
+                    <span style="opacity:0.6; font-size:0.65rem;">${c.sound}</span>
+                </div>`;
+            });
+        } else if (type === 'shape') {
+            Object.keys(SHAPES).forEach(key => {
+                const s = SHAPES[key];
+                html += `<div style="padding: 12px; background: rgba(255,255,255,0.05); border-radius: 8px; text-align: center;">
+                    <strong>${s.name}</strong><br>
+                    <span style="opacity:0.6; font-size:0.65rem;">${s.meaning.split(',')[0]}</span>
+                </div>`;
+            });
+        } else if (type === 'number') {
+            for (let i = 1; i <= 12; i++) {
+                const n = NUMBERS[i];
+                html += `<div style="padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; text-align: center;">
+                    <strong style="font-size:1.2rem;">${i}</strong><br>
+                    <span style="opacity:0.6; font-size:0.65rem;">${n.quality}</span>
+                </div>`;
+            }
+        } else if (type === 'zodiac') {
+            Object.keys(ZODIAC).forEach(key => {
+                const z = ZODIAC[key];
+                html += `<div style="padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; text-align: center;">
+                    <span style="font-size:1.3rem;">${z.symbol}</span><br>
+                    <strong>${z.name}</strong><br>
+                    <span style="opacity:0.6; font-size:0.65rem;">${z.element}</span>
+                </div>`;
+            });
+        }
+
+        html += '</div>';
+        legend.innerHTML = html;
+    }
+
+    // Toggle visibility
+    if (legend.style.display === 'none' || legend.style.display === '') {
+        legend.style.display = 'block';
+        if (btn) {
+            btn.textContent = '▲ HIDE LEGEND';
+            btn.style.background = 'rgba(255,255,255,0.1)';
+        }
+    } else {
+        legend.style.display = 'none';
+        if (btn) {
+            btn.textContent = '▼ SHOW LEGEND';
+            btn.style.background = 'rgba(255,255,255,0.05)';
+        }
+    }
+}
+
+
+// ==== UI POPULATION & AUTO-ADVANCE =====
+
+function populateColors() {
+    const grid = document.getElementById('color-grid');
+    if (!grid) return;
+
+    grid.innerHTML = '';
+
+    Object.keys(COLORS).forEach((key, index) => {
+        const color = COLORS[key];
+        const orb = document.createElement('div');
+        orb.className = 'color-orb';
+        orb.style.background = `radial-gradient(circle, ${lighten(color.hex, 20)}, ${color.hex})`;
+
+        // Auto-advance on click
+        orb.onclick = () => {
+            if (state.isTransitioning) return;
+
+            // Remove selection from all orbs
+            document.querySelectorAll('.color-orb').forEach(o => o.classList.remove('selected'));
+            orb.classList.add('selected');
+
+            // Update state
+            state.color = key;
+
+            // Play sound
+            playColorSound(key);
+
+            // Surveillance feedback
+            flashMessage('CHOICE RECORDED');
+
+            // Auto-advance to shapes
+            advanceToNextSection();
+        };
+
+        // Stagger animation
+        setTimeout(() => {
+            orb.classList.add('visible');
+        }, index * 50);
+
+        grid.appendChild(orb);
+    });
+}
+
+function populateShapes() {
+    const grid = document.getElementById('shape-grid');
+    if (!grid) return;
+
+    grid.innerHTML = '';
+
+    Object.keys(SHAPES).forEach((key, index) => {
+        const container = document.createElement('div');
+        container.className = 'shape-container';
+
+        const canvas = document.createElement('canvas');
+        canvas.className = 'shape-canvas';
+        canvas.width = 150;
+        canvas.height = 150;
+
+        drawShapePreview(canvas, key);
+        container.appendChild(canvas);
+
+        // Auto-advance on click
+        container.onclick = () => {
+            if (state.isTransitioning) return;
+
+            document.querySelectorAll('.shape-container').forEach(c => c.classList.remove('selected'));
+            container.classList.add('selected');
+
+            state.shape = key;
+            flashMessage('CHOICE RECORDED');
+            advanceToNextSection();
+        };
+
+        setTimeout(() => {
+            container.classList.add('visible');
+        }, index * 50);
+
+        grid.appendChild(container);
+    });
+}
+
+function populateNumbers() {
+    const grid = document.getElementById('number-grid');
+    if (!grid) return;
+
+    grid.innerHTML = '';
+
+    for (let i = 1; i <= 12; i++) {
+        const item = document.createElement('div');
+        item.className = 'number-item';
+        item.textContent = i;
+        item.style.cursor = 'pointer';
+        item.style.pointerEvents = 'auto';
+
+        // Auto-advance on click
+        item.onclick = () => {
+            if (state.isTransitioning) return;
+
+            document.querySelectorAll('.number-item').forEach(n => n.classList.remove('selected'));
+            item.classList.add('selected');
+
+            state.number = i;
+            flashMessage('CHOICE RECORDED');
+            advanceToNextSection();
+        };
+
+        setTimeout(() => {
+            item.classList.add('visible');
+        }, i * 40);
+
+        grid.appendChild(item);
+    }
+}
+
+function populateZodiac() {
+    const grid = document.getElementById('zodiac-grid');
+    if (!grid) return;
+
+    grid.innerHTML = '';
+
+    Object.keys(ZODIAC).forEach((key, index) => {
+        const zodiac = ZODIAC[key];
+        const item = document.createElement('div');
+        item.className = 'zodiac-item';
+
+        const symbol = document.createElement('div');
+        symbol.className = 'zodiac-symbol';
+        symbol.textContent = zodiac.symbol;
+
+        const name = document.createElement('div');
+        name.className = 'zodiac-name';
+        name.textContent = zodiac.name;
+
+        item.appendChild(symbol);
+        item.appendChild(name);
+
+        // Final selection - generate artwork
+        item.onclick = () => {
+            if (state.isTransitioning) return;
+
+            document.querySelectorAll('.zodiac-item').forEach(z => z.classList.remove('selected'));
+            item.classList.add('selected');
+
+            state.zodiac = key;
+
+            // Final surveillance feedback
+            flashMessage('SIGNAL COMPLETE // GENERATING ARTIFACT');
+
+            // Generate artwork after selection
+            setTimeout(() => {
+                generateFinalArtwork();
+            }, 800);
+        };
+
+        setTimeout(() => {
+            item.classList.add('visible');
+        }, index * 50);
+
+        grid.appendChild(item);
+    });
+}
+
+
+// ===== GENERATE FINAL ARTWORK =====
+
+function generateFinalArtwork() {
+    // Generate deterministic artifact ID
+    state.artifactID = getArtifactID();
+
+    // Navigate to result section
+    navigateToSection('result');
+
+    // Update artifact title
+    const titleEl = document.getElementById('artwork-title');
+    if (titleEl) {
+        titleEl.textContent = `Atelier K ${state.artifactID}`;
+    }
+
+    // Show unified control panel
+    const controlPanel = document.getElementById('control-panel');
+    if (controlPanel) controlPanel.style.display = 'block';
+
+    // Show living indicator
+    const livingIndicator = document.getElementById('living-indicator');
+    if (livingIndicator) livingIndicator.style.display = 'block';
+
+    // Generate artwork
+    setTimeout(() => {
+        const analysis = analyzeSelections(state.color, state.shape, state.number, state.zodiac);
+        const finalCanvas = document.getElementById('final-canvas');
+
+        if (finalCanvas) {
+            try {
+                const generator = new KandinskyGenerator(finalCanvas, analysis);
+                generator.generate();
+                finalCanvas.style.display = 'block';
+                finalCanvas.classList.add('visible');
+                console.log('Artwork generated successfully');
+            } catch (e) {
+                console.error('Error generating artwork:', e);
+            }
+        }
+
+        if (typeof playGenerationSound === 'function') {
+            playGenerationSound(state.color);
+        }
+
+        // Hide legend button
+        const legendToggle = document.getElementById('legend-toggle');
+        if (legendToggle) {
+            legendToggle.style.display = 'none';
+        }
+
+        // Populate live editor and synesthetic dashboard
+        populateLiveEditors();
+        populateSynestheticDashboard();
+    }, 500);
+}
+
+// ===== SYNESTHETIC DASHBOARD =====
+
+function populateSynestheticDashboard() {
+    if (!state.color || !state.shape || !state.number || !state.zodiac) return;
+
+    const analysis = analyzeSelections(state.color, state.shape, state.number, state.zodiac);
+
+    // Update radar values
+    const colorEl = document.getElementById('radar-color-value');
+    if (colorEl) colorEl.textContent = COLORS[state.color]?.name || state.color;
+
+    const formEl = document.getElementById('radar-form-value');
+    if (formEl) formEl.textContent = SHAPES[state.shape]?.name || state.shape;
+
+    const numberEl = document.getElementById('radar-number-value');
+    if (numberEl) numberEl.textContent = state.number;
+
+    const constellationEl = document.getElementById('radar-constellation-value');
+    if (constellationEl) constellationEl.textContent = ZODIAC[state.zodiac]?.name || state.zodiac;
+
+    const hashEl = document.getElementById('radar-hash');
+    if (hashEl) hashEl.textContent = state.artifactID || '—';
+
+    // Also update panel header hash
+    const panelHashEl = document.getElementById('panel-hash');
+    if (panelHashEl) panelHashEl.textContent = state.artifactID || '—';
+
+    // Update metrics
+    const harmonyValue = analysis.harmony || 75;
+    const harmonyEl = document.getElementById('metric-harmony-value');
+    const harmonyBar = document.getElementById('metric-harmony-bar');
+    if (harmonyEl) harmonyEl.textContent = `${harmonyValue}%`;
+    if (harmonyBar) harmonyBar.style.width = `${harmonyValue}%`;
+
+    // Complexity based on number (1-12 maps to 20-100%)
+    const complexityPercent = Math.round(20 + (state.number / 12) * 80);
+    const complexityEl = document.getElementById('metric-complexity-value');
+    const complexityBar = document.getElementById('metric-complexity-bar');
+    if (complexityEl) complexityEl.textContent = getComplexityLabel(complexityPercent);
+    if (complexityBar) complexityBar.style.width = `${complexityPercent}%`;
+
+    // Temperature based on color
+    const colorData = COLORS[state.color];
+    const tempValue = colorData?.temperature || 'Neutral';
+    const tempEl = document.getElementById('metric-temp-value');
+    const tempIndicator = document.getElementById('metric-temp-indicator');
+    if (tempEl) tempEl.textContent = tempValue;
+    if (tempIndicator) {
+        const tempPosition = tempValue === 'Warm' ? '80%' : tempValue === 'Cool' ? '20%' : '50%';
+        tempIndicator.style.left = tempPosition;
+    }
+
+    // Elements
+    const elementIcons = { Fire: '🔥', Water: '💧', Earth: '🌍', Air: '💨' };
+    const colorElement = colorData?.element || 'Fire';
+    const zodiacElement = ZODIAC[state.zodiac]?.element || 'Water';
+
+    const colorIconEl = document.getElementById('element-color-icon');
+    const colorNameEl = document.getElementById('element-color-name');
+    if (colorIconEl) colorIconEl.textContent = elementIcons[colorElement] || '🔴';
+    if (colorNameEl) colorNameEl.textContent = colorElement;
+
+    const zodiacIconEl = document.getElementById('element-zodiac-icon');
+    const zodiacNameEl = document.getElementById('element-zodiac-name');
+    if (zodiacIconEl) zodiacIconEl.textContent = elementIcons[zodiacElement] || '🔵';
+    if (zodiacNameEl) zodiacNameEl.textContent = zodiacElement;
+}
+
+function getComplexityLabel(percent) {
+    if (percent < 40) return 'Minimal';
+    if (percent < 60) return 'Balanced';
+    if (percent < 80) return 'Rich';
+    return 'Dense';
+}
+
+
+
+// ===== SECTION FLOW CONTROL (Typeform-style) =====
+
+const sectionOrder = ['hero', 'colors', 'shapes', 'numbers', 'zodiac', 'result'];
+
+function navigateToSection(sectionName) {
+    if (state.isTransitioning) return;
+
+    state.isTransitioning = true;
+    state.currentSection = sectionName;
+
+    // Get all sections and find target
+    const sections = document.querySelectorAll('section');
+    const targetSection = document.querySelector(`[data-section="${sectionName}"]`);
+    const scrollContainer = document.querySelector('.scroll-container');
+
+    if (!targetSection || !scrollContainer) {
+        console.error(`Section '${sectionName}' not found.`);
+        state.isTransitioning = false;
+        return;
+    }
+
+    // Find target index
+    let targetIndex = 0;
+    sections.forEach((sec, index) => {
+        if (sec === targetSection) {
+            targetIndex = index;
+        }
+        sec.classList.remove('active');
+    });
+
+    // Move container using translateY (each section is 100vh)
+    scrollContainer.style.transform = `translateY(-${targetIndex * 100}vh)`;
+
+    // Activate target section
+    targetSection.classList.add('active');
+
+    // Populate section-specific legend
+    populateSectionLegend(sectionName);
+
+    // Allow transitions after animation
+    setTimeout(() => {
+        state.isTransitioning = false;
+    }, 800);
+}
+
+function unlockNextSection() {
+    const currentIndex = sectionOrder.indexOf(state.currentSection);
+    if (currentIndex < sectionOrder.length - 1) {
+        const nextSection = sectionOrder[currentIndex + 1];
+        if (!state.unlockedSections.includes(nextSection)) {
+            state.unlockedSections.push(nextSection);
+        }
+    }
+}
+
+function advanceToNextSection() {
+    const currentIndex = sectionOrder.indexOf(state.currentSection);
+    if (currentIndex < sectionOrder.length - 1) {
+        const nextSection = sectionOrder[currentIndex + 1];
+        unlockNextSection();
+
+        // Smooth delay before transition
+        setTimeout(() => {
+            navigateToSection(nextSection);
+        }, 600);
+    }
+}
+
+
+// Section observer (optional - for legend context)
+const sectionObserver = new IntersectionObserver((entries) => {
+    // Observer logic here if needed
+}, { threshold: 0.5 });
+
+
+// ===== INITIALIZATION =====
+
+window.addEventListener('load', () => {
+    populateColors();
+    populateShapes();
+    populateNumbers();
+    populateZodiac();
+
+    if (typeof populateLegend === 'function') {
+        populateLegend('colors');
+    }
+
+    // Initialize artifact ID
+    state.artifactID = getArtifactID();
+
+    // Hide legend button initially
+    const legendToggle = document.getElementById('legend-toggle');
+    if (legendToggle) {
+        legendToggle.style.display = 'none';
+    }
+
+    // Initialize section flow - activate hero section
+    navigateToSection('hero');
+
+    setTimeout(() => {
+        const loading = document.getElementById('loading');
+        if (loading) {
+            loading.classList.add('hidden');
+        }
+    }, 1000);
+});
+
+// About modal
+function toggleAbout() {
+    const modal = document.getElementById('about-modal');
+    modal.classList.toggle('active');
+}
+
+// Pricing modal
+function togglePricing() {
+    const modal = document.getElementById('pricing-modal');
+    modal.classList.toggle('active');
+}
+
+// Open email directly for print commission inquiry
+function openCommissionModal() {
+    // Validate artwork is complete
+    if (!state.color || !state.shape || !state.number || !state.zodiac) {
+        alert('Please complete your artwork first');
+        return;
+    }
+
+    const artifactID = state.artifactID || getArtifactID();
+
+    const subject = `Print Inquiry: Atelier K ${artifactID}`;
+    const body = `Hello Avery,
+
+I am interested in ordering a signed print of my Atelier K artwork.
+
+ARTIFACT DETAILS:
+- Artifact ID: ${artifactID}
+- Color: ${COLORS[state.color]?.name || state.color}
+- Form: ${SHAPES[state.shape]?.name || state.shape}
+- Number: ${state.number}
+- Constellation: ${ZODIAC[state.zodiac]?.name || state.zodiac}
+
+Please let me know about available print options, pricing, and next steps.
+
+Thank you!`;
+
+    const mailtoLink = `mailto:hello@averylakeofficial.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    console.log('Opening mailto:', mailtoLink);
+
+    // Simple, reliable email opening - works across all browsers and devices
+    window.location.href = mailtoLink;
+}
+
+// Legacy functions for backwards compatibility (no-op)
+function closeCommissionModal() { }
+function selectCommission(tier) { openCommissionModal(); }
+
+
+// Legacy function - redirect to modal
+function commissionSignedPrint() {
+    openCommissionModal();
+}
+
+// Legacy pricing modal function (for backwards compatibility)
+function proceedToCommission() {
+    commissionSignedPrint();
+}
+
+
+// ===== LIVE EDITOR =====
+
+function switchEditorTab(tab) {
+    // Update tab buttons - find the clicked one by tab name
+    document.querySelectorAll('.editor-tab').forEach(t => {
+        t.classList.remove('active');
+        // Match by checking the onclick attribute or data attribute
+        if (t.textContent.toLowerCase().includes(tab.replace('s', '').substring(0, 4))) {
+            t.classList.add('active');
+        }
+    });
+
+    // More reliable: just set active on clicked tab by tab name
+    const tabs = {
+        'colors': 'Color',
+        'shapes': 'Form',
+        'numbers': 'Number',
+        'zodiac': 'Constellation'
+    };
+    document.querySelectorAll('.editor-tab').forEach(t => {
+        t.classList.remove('active');
+        if (t.textContent === tabs[tab]) {
+            t.classList.add('active');
+        }
+    });
+
+    // Update content panels
+    document.querySelectorAll('.editor-content').forEach(c => c.classList.remove('active'));
+    const panel = document.getElementById(`editor-${tab}`);
+    if (panel) {
+        panel.classList.add('active');
+    }
+}
+
+function populateLiveEditors() {
+    // Populate color editor
+    const colorGrid = document.getElementById('editor-color-grid');
+    if (!colorGrid) return;
+    colorGrid.innerHTML = ''; // Clear existing
+    Object.keys(COLORS).forEach(key => {
+        const color = COLORS[key];
+        const item = document.createElement('div');
+        item.className = 'editor-item';
+        if (key === state.color) item.classList.add('selected');
+        item.style.background = `radial-gradient(circle, ${lighten(color.hex, 20)}, ${color.hex})`;
+        item.style.cursor = 'pointer';
+        item.style.pointerEvents = 'auto';
+        item.onclick = () => liveEditColor(key, item);
+        colorGrid.appendChild(item);
+    });
+
+    // Populate shape editor
+    const shapeGrid = document.getElementById('editor-shape-grid');
+    shapeGrid.innerHTML = ''; // Clear existing
+    Object.keys(SHAPES).forEach(key => {
+        const container = document.createElement('div');
+        container.className = 'editor-item';
+        container.style.cursor = 'pointer';
+        container.style.pointerEvents = 'auto';
+        if (key === state.shape) container.classList.add('selected');
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 150;
+        canvas.height = 150;
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+        canvas.style.display = 'block';
+        canvas.style.pointerEvents = 'none'; // Let clicks pass to container
+        drawShapePreview(canvas, key);
+
+        container.appendChild(canvas);
+        container.onclick = () => liveEditShape(key, container);
+        shapeGrid.appendChild(container);
+    });
+
+    // Populate number editor
+    const numberGrid = document.getElementById('editor-number-grid');
+    numberGrid.innerHTML = ''; // Clear existing
+    for (let i = 1; i <= 12; i++) {
+        const item = document.createElement('div');
+        item.className = 'editor-item';
+        if (i === state.number) item.classList.add('selected');
+        item.textContent = i;
+        item.style.fontSize = '2rem';
+        item.style.fontWeight = '600';
+        item.style.cursor = 'pointer';
+        item.style.pointerEvents = 'auto';
+        item.onclick = () => liveEditNumber(i, item);
+        numberGrid.appendChild(item);
+    }
+
+    // Populate zodiac editor
+    const zodiacGrid = document.getElementById('editor-zodiac-grid');
+    zodiacGrid.innerHTML = ''; // Clear existing
+    Object.keys(ZODIAC).forEach(key => {
+        const zodiac = ZODIAC[key];
+        const item = document.createElement('div');
+        item.className = 'editor-item';
+        if (key === state.zodiac) item.classList.add('selected');
+        item.innerHTML = `<div style="font-size: 2rem;">${zodiac.symbol}</div>`;
+        item.style.cursor = 'pointer';
+        item.style.pointerEvents = 'auto';
+        item.onclick = () => liveEditZodiac(key, item);
+        zodiacGrid.appendChild(item);
+    });
+}
+
+function liveEditColor(key, element) {
+    state.color = key;
+    document.querySelectorAll('#editor-color-grid .editor-item').forEach(el => el.classList.remove('selected'));
+    element.classList.add('selected');
+    regenerateArtworkLive();
+}
+
+function liveEditShape(key, element) {
+    state.shape = key;
+    document.querySelectorAll('#editor-shape-grid .editor-item').forEach(el => el.classList.remove('selected'));
+    element.classList.add('selected');
+    regenerateArtworkLive();
+}
+
+function liveEditNumber(num, element) {
+    state.number = num;
+    document.querySelectorAll('#editor-number-grid .editor-item').forEach(el => el.classList.remove('selected'));
+    element.classList.add('selected');
+    regenerateArtworkLive();
+}
+
+function liveEditZodiac(key, element) {
+    state.zodiac = key;
+    document.querySelectorAll('#editor-zodiac-grid .editor-item').forEach(el => el.classList.remove('selected'));
+    element.classList.add('selected');
+    regenerateArtworkLive();
+}
+
+function regenerateArtworkLive() {
+    // Update hash ID
+    state.artifactID = getArtifactID();
+
+    // Update title
+    const titleEl = document.getElementById('artwork-title');
+    if (titleEl) {
+        titleEl.textContent = `Atelier K ${state.artifactID}`;
+    }
+
+    // Regenerate artwork
+    const analysis = analyzeSelections(state.color, state.shape, state.number, state.zodiac);
+    const finalCanvas = document.getElementById('final-canvas');
+    const generator = new KandinskyGenerator(finalCanvas, analysis);
+    generator.generate();
+
+    // Update synesthetic dashboard
+    populateSynestheticDashboard();
+
+    // Play sound
+    playColorSound(state.color);
+}
+
+function captureFinal() {
+    // Safety check - ensure we have all required state
+    if (!state.color || !state.shape || !state.number || !state.zodiac) {
+        flashMessage('SELECTION INCOMPLETE');
+        return;
+    }
+
+    // === CAPTURE FLASH EFFECT ===
+    const captureFlash = document.getElementById('capture-flash');
+    if (captureFlash) {
+        captureFlash.style.display = 'block';
+        captureFlash.classList.add('capture-flash-active');
+        setTimeout(() => {
+            captureFlash.style.display = 'none';
+            captureFlash.classList.remove('capture-flash-active');
+        }, 500);
+    }
+
+    // Hide living indicator (artwork is now "crystallized")
+    const livingIndicator = document.getElementById('living-indicator');
+    if (livingIndicator) livingIndicator.style.display = 'none';
+
+    // Hide unified control panel
+    const controlPanel = document.getElementById('control-panel');
+    if (controlPanel) controlPanel.style.display = 'none';
+
+    // Show action buttons, data intro, and data panel
+    const finalActions = document.getElementById('final-actions');
+    if (finalActions) finalActions.style.display = 'flex';
+
+    const helpContact = document.getElementById('help-contact');
+    if (helpContact) helpContact.style.display = 'block';
+
+    const dataIntro = document.getElementById('data-intro');
+    if (dataIntro) dataIntro.style.display = 'block';
+
+    const dataPanel = document.getElementById('data-panel');
+    if (dataPanel) dataPanel.style.display = 'block';
+
+    // Crystallization feedback
+    flashMessage('CRYSTALLIZED // Your artwork is now permanent');
+
+    // Populate data panel with final selections
+    try {
+        const analysis = analyzeSelections(state.color, state.shape, state.number, state.zodiac);
+        populateDataPanel(analysis);
+    } catch (e) {
+        console.error('Error populating data panel:', e);
+    }
+
+    // Play final sound
+    if (typeof playGenerationSound === 'function') {
+        playGenerationSound(state.color);
+    }
+
+    // Scroll to buttons
+    setTimeout(() => {
+        const actions = document.getElementById('final-actions');
+        if (actions) {
+            actions.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, 300);
+}
+
+function reset() {
+    // Reset state
+    state.color = null;
+    state.shape = null;
+    state.number = null;
+    state.zodiac = null;
+    state.artifactID = null;
+    state.unlockedSections = ['hero'];
+    state.currentSection = 'hero';
+    state.isTransitioning = false;
+
+    // Clear selections in UI
+    document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+
+    // Hide result section elements
+    const controlPanel = document.getElementById('control-panel');
+    if (controlPanel) controlPanel.style.display = 'none';
+
+    const livingIndicator = document.getElementById('living-indicator');
+    if (livingIndicator) livingIndicator.style.display = 'none';
+
+    const finalActions = document.getElementById('final-actions');
+    if (finalActions) finalActions.style.display = 'none';
+
+    const dataPanel = document.getElementById('data-panel');
+    if (dataPanel) dataPanel.style.display = 'none';
+
+    const dataIntro = document.getElementById('data-intro');
+    if (dataIntro) dataIntro.style.display = 'none';
+
+    // Clear canvas
+    const canvas = document.getElementById('final-canvas');
+    if (canvas) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // Navigate back to hero
+    navigateToSection('hero');
+    flashMessage('SYSTEM RESET // NEW SIGNAL AWAITED');
+}
+
+// ===== MODAL TOGGLES =====
+
+function toggleAbout() {
+    const modal = document.getElementById('about-modal');
+    if (modal) {
+        modal.classList.toggle('active');
+    }
+}
+
+function togglePersonalNote() {
+    const modal = document.getElementById('personal-note-modal');
+    if (modal) {
+        modal.classList.toggle('active');
+    }
+}

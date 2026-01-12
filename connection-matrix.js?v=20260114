@@ -1,0 +1,487 @@
+/**
+ * THE KANDINSKY PROTOCOL - CONNECTION MATRIX
+ * 
+ * Systematic relationships between:
+ * - Colors (12)
+ * - Shapes (12)
+ * - Numbers (1-12)
+ * - Zodiac Signs (12)
+ * 
+ * Based on Kandinsky's theories, numerology, and astrological symbolism
+ */
+
+// ===== COLOR DEFINITIONS =====
+const COLORS = {
+    red: {
+        name: 'Red',
+        hex: '#FF0000',
+        temperature: 'Hot',
+        energy: 'Aggressive',
+        sound: 'Trumpet, drums',
+        emotion: 'Passion, urgency',
+        element: 'Fire'
+    },
+    orange: {
+        name: 'Orange',
+        hex: '#FF7F00',
+        temperature: 'Warm',
+        energy: 'Active',
+        sound: 'Brass',
+        emotion: 'Vitality, excitement',
+        element: 'Fire'
+    },
+    yellow: {
+        name: 'Yellow',
+        hex: '#FFFF00',
+        temperature: 'Hot',
+        energy: 'Sharp',
+        sound: 'High trumpet',
+        emotion: 'Intellect, brightness',
+        element: 'Air'
+    },
+    yellowGreen: {
+        name: 'Yellow-Green',
+        hex: '#9ACD32',
+        temperature: 'Warm',
+        energy: 'Growing',
+        sound: 'Violin',
+        emotion: 'Hope, spring',
+        element: 'Earth'
+    },
+    green: {
+        name: 'Green',
+        hex: '#00FF00',
+        temperature: 'Neutral',
+        energy: 'Static',
+        sound: 'Middle violin',
+        emotion: 'Peace, balance',
+        element: 'Earth'
+    },
+    blueGreen: {
+        name: 'Blue-Green',
+        hex: '#00CED1',
+        temperature: 'Cool',
+        energy: 'Retreating',
+        sound: 'Cello',
+        emotion: 'Calm, depth',
+        element: 'Water'
+    },
+    cyan: {
+        name: 'Cyan',
+        hex: '#00FFFF',
+        temperature: 'Cool',
+        energy: 'Ethereal',
+        sound: 'Flute',
+        emotion: 'Clarity, spirit',
+        element: 'Air'
+    },
+    blue: {
+        name: 'Blue',
+        hex: '#0000FF',
+        temperature: 'Cold',
+        energy: 'Deep',
+        sound: 'Organ, cello',
+        emotion: 'Spirituality, infinite',
+        element: 'Water'
+    },
+    violet: {
+        name: 'Violet',
+        hex: '#8B00FF',
+        temperature: 'Cold',
+        energy: 'Mystical',
+        sound: 'Horn',
+        emotion: 'Mystery, transcendence',
+        element: 'Spirit'
+    },
+    magenta: {
+        name: 'Magenta',
+        hex: '#FF00FF',
+        temperature: 'Both',
+        energy: 'Electric',
+        sound: 'Synthesizer',
+        emotion: 'Duality, energy',
+        element: 'Fire'
+    },
+    white: {
+        name: 'White',
+        hex: '#FFFFFF',
+        temperature: 'Neutral',
+        energy: 'Silence',
+        sound: 'Pause, space',
+        emotion: 'Purity, beginning',
+        element: 'Spirit'
+    },
+    black: {
+        name: 'Black',
+        hex: '#000000',
+        temperature: 'Neutral',
+        energy: 'Final',
+        sound: 'End, silence',
+        emotion: 'Mystery, void',
+        element: 'Spirit'
+    }
+};
+
+// ===== BIOMORPHIC SHAPE DEFINITIONS (Paris Period) =====
+const SHAPES = {
+    cell: {
+        name: 'Cell',
+        colorAffinity: 'blue',
+        temperature: 'Cool',
+        motion: 'Floating',
+        meaning: 'Life, containment, organic unity'
+    },
+    amoeba: {
+        name: 'Amoeba',
+        colorAffinity: 'blueGreen',
+        temperature: 'Cool',
+        motion: 'Flowing',
+        meaning: 'Adaptability, fluidity, change'
+    },
+    pod: {
+        name: 'Pod',
+        colorAffinity: 'green',
+        temperature: 'Neutral',
+        motion: 'Gestating',
+        meaning: 'Potential, protection, emergence'
+    },
+    tendril: {
+        name: 'Tendril',
+        colorAffinity: 'yellowGreen',
+        temperature: 'Warm',
+        motion: 'Reaching',
+        meaning: 'Growth, connection, seeking'
+    },
+    blob: {
+        name: 'Blob',
+        colorAffinity: 'magenta',
+        temperature: 'Both',
+        motion: 'Pulsing',
+        meaning: 'Pure form, emotion, spontaneity'
+    },
+    nucleus: {
+        name: 'Nucleus',
+        colorAffinity: 'red',
+        temperature: 'Hot',
+        motion: 'Radiating',
+        meaning: 'Core, essence, vital center'
+    },
+    membrane: {
+        name: 'Membrane',
+        colorAffinity: 'cyan',
+        temperature: 'Cool',
+        motion: 'Enveloping',
+        meaning: 'Boundary, protection, interface'
+    },
+    spore: {
+        name: 'Spore',
+        colorAffinity: 'orange',
+        temperature: 'Warm',
+        motion: 'Dispersing',
+        meaning: 'Reproduction, spreading, potential'
+    },
+    cyst: {
+        name: 'Cyst',
+        colorAffinity: 'violet',
+        temperature: 'Cool',
+        motion: 'Dormant',
+        meaning: 'Rest, transformation, mystery'
+    },
+    embryo: {
+        name: 'Embryo',
+        colorAffinity: 'yellow',
+        temperature: 'Hot',
+        motion: 'Developing',
+        meaning: 'Beginning, becoming, promise'
+    },
+    flagellum: {
+        name: 'Flagellum',
+        colorAffinity: 'white',
+        temperature: 'Neutral',
+        motion: 'Whipping',
+        meaning: 'Movement, propulsion, direction'
+    },
+    chromosome: {
+        name: 'Chromosome',
+        colorAffinity: 'black',
+        temperature: 'Neutral',
+        motion: 'Coiling',
+        meaning: 'Code, destiny, blueprint'
+    }
+};
+
+// ===== NUMBER DEFINITIONS =====
+const NUMBERS = {
+    1: { meaning: 'Unity, beginning, self', quality: 'Initiator', element: 'Fire', form: 'Point/Dot' },
+    2: { meaning: 'Duality, balance, partnership', quality: 'Mediator', element: 'Water', form: 'Line' },
+    3: { meaning: 'Trinity, creativity, expression', quality: 'Creator', element: 'Fire', form: 'Triangle' },
+    4: { meaning: 'Stability, foundation, order', quality: 'Builder', element: 'Earth', form: 'Square' },
+    5: { meaning: 'Change, freedom, human', quality: 'Explorer', element: 'Air', form: 'Pentagon/Star' },
+    6: { meaning: 'Harmony, responsibility, love', quality: 'Nurturer', element: 'Earth', form: 'Hexagon' },
+    7: { meaning: 'Spirituality, wisdom, analysis', quality: 'Seeker', element: 'Air', form: 'Heptagon' },
+    8: { meaning: 'Power, abundance, infinity', quality: 'Achiever', element: 'Fire', form: 'Octagon' },
+    9: { meaning: 'Completion, humanitarianism', quality: 'Completer', element: 'Water', form: 'Nonagon' },
+    10: { meaning: 'Perfection, completion + new beginning', quality: 'Transformer', element: 'All', form: 'Circle' },
+    11: { meaning: 'Master number, intuition, enlightenment', quality: 'Illuminator', element: 'Spirit', form: 'Double line' },
+    12: { meaning: 'Cosmic order, completion of cycle', quality: 'Cosmic', element: 'All', form: 'Dodecagon' }
+};
+
+// ===== LETTER DEFINITIONS =====
+const LETTERS = {
+    A: { number: 1, archetype: 'Leader', quality: 'Initiative, independence', colorAffinity: 'red' },
+    B: { number: 2, archetype: 'Diplomat', quality: 'Cooperation, sensitivity', colorAffinity: 'orange' },
+    C: { number: 3, archetype: 'Creator', quality: 'Expression, joy', colorAffinity: 'yellow' },
+    D: { number: 4, archetype: 'Builder', quality: 'Practicality, discipline', colorAffinity: 'green' },
+    E: { number: 5, archetype: 'Freedom', quality: 'Versatility, curiosity', colorAffinity: 'blue' },
+    F: { number: 6, archetype: 'Nurturer', quality: 'Responsibility, harmony', colorAffinity: 'cyan' },
+    G: { number: 7, archetype: 'Seeker', quality: 'Analysis, spirituality', colorAffinity: 'violet' },
+    H: { number: 8, archetype: 'Powerhouse', quality: 'Ambition, material success', colorAffinity: 'magenta' },
+    I: { number: 9, archetype: 'Humanitarian', quality: 'Completion, compassion', colorAffinity: 'white' },
+    J: { number: 1, archetype: 'Pioneer', quality: 'Original, assertive', colorAffinity: 'red' },
+    K: { number: 2, archetype: 'Peacemaker', quality: 'Balance, intuition', colorAffinity: 'orange' },
+    L: { number: 3, archetype: 'Communicator', quality: 'Optimism, social', colorAffinity: 'yellow' },
+    M: { number: 4, archetype: 'Organizer', quality: 'System, structure', colorAffinity: 'green' },
+    N: { number: 5, archetype: 'Adventurer', quality: 'Change, freedom', colorAffinity: 'blue' },
+    O: { number: 6, archetype: 'Caretaker', quality: 'Service, harmony', colorAffinity: 'cyan' },
+    P: { number: 7, archetype: 'Philosopher', quality: 'Wisdom, introspection', colorAffinity: 'violet' },
+    Q: { number: 8, archetype: 'Executive', quality: 'Authority, control', colorAffinity: 'magenta' },
+    R: { number: 9, archetype: 'Idealist', quality: 'Universal love', colorAffinity: 'white' },
+    S: { number: 1, archetype: 'Initiator', quality: 'Leadership, drive', colorAffinity: 'red' },
+    T: { number: 2, archetype: 'Supporter', quality: 'Cooperation, peace', colorAffinity: 'orange' },
+    U: { number: 3, archetype: 'Artist', quality: 'Creativity, expression', colorAffinity: 'yellow' },
+    V: { number: 4, archetype: 'Pragmatist', quality: 'Foundation, work', colorAffinity: 'green' },
+    W: { number: 5, archetype: 'Explorer', quality: 'Movement, experience', colorAffinity: 'blue' },
+    X: { number: 6, archetype: 'Harmonizer', quality: 'Balance, responsibility', colorAffinity: 'cyan' },
+    Y: { number: 7, archetype: 'Mystic', quality: 'Inner wisdom', colorAffinity: 'violet' },
+    Z: { number: 8, archetype: 'Achiever', quality: 'Material mastery', colorAffinity: 'magenta' }
+};
+
+// ===== ZODIAC DEFINITIONS =====
+const ZODIAC = {
+    aries: {
+        name: 'Aries',
+        element: 'Fire',
+        modality: 'Cardinal',
+        planet: 'Mars',
+        colorAffinity: 'red',
+        shapeAffinity: 'triangle',
+        number: 1,
+        symbol: '♈'
+    },
+    taurus: {
+        name: 'Taurus',
+        element: 'Earth',
+        modality: 'Fixed',
+        planet: 'Venus',
+        colorAffinity: 'green',
+        shapeAffinity: 'square',
+        number: 2,
+        symbol: '♉'
+    },
+    gemini: {
+        name: 'Gemini',
+        element: 'Air',
+        modality: 'Mutable',
+        planet: 'Mercury',
+        colorAffinity: 'yellow',
+        shapeAffinity: 'line',
+        number: 3,
+        symbol: '♊'
+    },
+    cancer: {
+        name: 'Cancer',
+        element: 'Water',
+        modality: 'Cardinal',
+        planet: 'Moon',
+        colorAffinity: 'cyan',
+        shapeAffinity: 'crescent',
+        number: 4,
+        symbol: '♋'
+    },
+    leo: {
+        name: 'Leo',
+        element: 'Fire',
+        modality: 'Fixed',
+        planet: 'Sun',
+        colorAffinity: 'orange',
+        shapeAffinity: 'circle',
+        number: 5,
+        symbol: '♌'
+    },
+    virgo: {
+        name: 'Virgo',
+        element: 'Earth',
+        modality: 'Mutable',
+        planet: 'Mercury',
+        colorAffinity: 'yellowGreen',
+        shapeAffinity: 'hexagon',
+        number: 6,
+        symbol: '♍'
+    },
+    libra: {
+        name: 'Libra',
+        element: 'Air',
+        modality: 'Cardinal',
+        planet: 'Venus',
+        colorAffinity: 'blueGreen',
+        shapeAffinity: 'cross',
+        number: 7,
+        symbol: '♎'
+    },
+    scorpio: {
+        name: 'Scorpio',
+        element: 'Water',
+        modality: 'Fixed',
+        planet: 'Mars/Pluto',
+        colorAffinity: 'magenta',
+        shapeAffinity: 'spiral',
+        number: 8,
+        symbol: '♏'
+    },
+    sagittarius: {
+        name: 'Sagittarius',
+        element: 'Fire',
+        modality: 'Mutable',
+        planet: 'Jupiter',
+        colorAffinity: 'violet',
+        shapeAffinity: 'star',
+        number: 9,
+        symbol: '♐'
+    },
+    capricorn: {
+        name: 'Capricorn',
+        element: 'Earth',
+        modality: 'Cardinal',
+        planet: 'Saturn',
+        colorAffinity: 'black',
+        shapeAffinity: 'triangle',
+        number: 10,
+        symbol: '♑'
+    },
+    aquarius: {
+        name: 'Aquarius',
+        element: 'Air',
+        modality: 'Fixed',
+        planet: 'Saturn/Uranus',
+        colorAffinity: 'blue',
+        shapeAffinity: 'line',
+        number: 11,
+        symbol: '♒'
+    },
+    pisces: {
+        name: 'Pisces',
+        element: 'Water',
+        modality: 'Mutable',
+        planet: 'Jupiter/Neptune',
+        colorAffinity: 'violet',
+        shapeAffinity: 'crescent',
+        number: 12,
+        symbol: '♓'
+    }
+};
+
+// ===== ANALYSIS FUNCTIONS =====
+
+/**
+ * Analyze user selections and generate connections
+ */
+function analyzeSelections(colorKey, shapeKey, number, zodiacKey) {
+    const color = COLORS[colorKey];
+    const shape = SHAPES[shapeKey];
+    const num = NUMBERS[number];
+    const zod = ZODIAC[zodiacKey];
+
+    return {
+        color: { key: colorKey, ...color },
+        shape: { key: shapeKey, ...shape },
+        number: { value: number, ...num },
+        zodiac: { key: zodiacKey, ...zod },
+        harmony: calculateHarmony(colorKey, shapeKey, number, zodiacKey),
+        meaning: generateMeaning(colorKey, shapeKey, number, zodiacKey)
+    };
+}
+
+/**
+ * Calculate harmony between selections (0-100)
+ */
+function calculateHarmony(colorKey, shapeKey, number, zodiacKey) {
+    let harmonyScore = 50; // Base score
+
+    const color = COLORS[colorKey];
+    const shape = SHAPES[shapeKey];
+    const num = NUMBERS[number];
+    const zod = ZODIAC[zodiacKey];
+
+    // Perfect Kandinsky pairing: shape's color affinity matches selected color
+    if (shape.colorAffinity === colorKey) {
+        harmonyScore += 20;
+    }
+
+    // Element matching
+    if (color.element === num.element) {
+        harmonyScore += 10;
+    }
+
+    // Zodiac color match
+    if (zod.colorAffinity === colorKey) {
+        harmonyScore += 15;
+    }
+
+    // Zodiac number alignment
+    if (zod.number === number) {
+        harmonyScore += 15;
+    }
+
+    // Temperature harmony (opposites create tension, same creates calm)
+    if (color.temperature === shape.temperature) {
+        harmonyScore += 10;
+    }
+
+    return Math.min(100, harmonyScore);
+}
+
+/**
+ * Generate meaning text based on selections
+ */
+function generateMeaning(colorKey, shapeKey, number, zodiacKey) {
+    const color = COLORS[colorKey];
+    const shape = SHAPES[shapeKey];
+    const num = NUMBERS[number];
+    const zod = ZODIAC[zodiacKey];
+
+    const harmony = calculateHarmony(colorKey, shapeKey, number, zodiacKey);
+
+    let interpretation = '';
+
+    // Opening based on harmony
+    if (harmony >= 80) {
+        interpretation = 'A highly harmonious composition emerges. ';
+    } else if (harmony >= 60) {
+        interpretation = 'A balanced composition with dynamic tensions. ';
+    } else {
+        interpretation = 'A composition of creative tension and contrast. ';
+    }
+
+    // Color-shape relationship
+    if (shape.colorAffinity === colorKey) {
+        interpretation += `The ${shape.name} finds its ideal expression in ${color.name}, as Kandinsky proposed. `;
+    } else {
+        interpretation += `The ${shape.name} meets ${color.name} in unexpected dialogue. `;
+    }
+
+    // Numerological layer
+    interpretation += `Through the number ${number}, the energy of ${num.quality.toLowerCase()} flows—${num.meaning.toLowerCase()}. `;
+
+    // Zodiac synthesis
+    interpretation += `Under ${zod.name}, the ${zod.element.toLowerCase()} element guides this combination toward ${shape.meaning.toLowerCase()}.`;
+
+    return interpretation;
+}
+
+/**
+ * Get artifact ID (timestamp-based)
+ * Format: KA-[timestamp] (Kandinsky Atelier)
+ */
+function getArtifactID() {
+    return `KA-${Date.now()}`;
+}

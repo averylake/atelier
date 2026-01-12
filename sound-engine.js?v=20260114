@@ -1,0 +1,410 @@
+/**
+ * THE KANDINSKY ATELIER - SYNESTHETIC SOUND ENGINE
+ * 
+ * Implements Kandinsky's color-sound synesthesia using Web Audio API
+ * Each of the 12 colors has a unique synthesized musical tone
+ * Based on Kandinsky's spiritual theories of art
+ */
+
+// ===== AUDIO CONTEXT SETUP =====
+let audioContext;
+let masterGain;
+let reverbNode;
+
+// Initialize audio context (must be called after user interaction on some browsers)
+function initAudioContext() {
+    if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+        // Create master gain (volume control)
+        masterGain = audioContext.createGain();
+        masterGain.gain.value = 0.3; // Moderate volume
+
+        // Create simple reverb using convolver
+        reverbNode = audioContext.createGain();
+        reverbNode.gain.value = 0.2; // Subtle reverb
+
+        // Connect reverb to master output
+        reverbNode.connect(masterGain);
+        masterGain.connect(audioContext.destination);
+    }
+
+    // Resume context if suspended (Safari requirement)
+    if (audioContext.state === 'suspended') {
+        audioContext.resume();
+    }
+}
+
+// ===== SOUND GENERATOR FUNCTIONS =====
+
+/**
+ * RED - Trumpet, drums (Bold, brass C5 523Hz)
+ */
+function playRedSound() {
+    initAudioContext();
+
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+
+    osc.type = 'sawtooth'; // Brass timbre
+    osc.frequency.value = 523; // C5
+
+    // ADSR Envelope - punchy attack for trumpet
+    const now = audioContext.currentTime;
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.6, now + 0.02); // Fast attack
+    gain.gain.exponentialRampToValueAtTime(0.3, now + 0.15); // Sustain
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4); // Release
+
+    osc.connect(gain);
+    gain.connect(reverbNode);
+    gain.connect(masterGain);
+
+    osc.start(now);
+    osc.stop(now + 0.4);
+}
+
+/**
+ * ORANGE - Brass (Warm brass D5 587Hz)
+ */
+function playOrangeSound() {
+    initAudioContext();
+
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.value = 587; // D5
+
+    const now = audioContext.currentTime;
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.5, now + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.25, now + 0.2);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+
+    osc.connect(gain);
+    gain.connect(reverbNode);
+    gain.connect(masterGain);
+
+    osc.start(now);
+    osc.stop(now + 0.5);
+}
+
+/**
+ * YELLOW - High trumpet (Bright, sharp E5 659Hz)
+ */
+function playYellowSound() {
+    initAudioContext();
+
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+
+    osc.type = 'square'; // Sharp, bright
+    osc.frequency.value = 659; // E5
+
+    const now = audioContext.currentTime;
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.4, now + 0.01); // Very fast attack
+    gain.gain.exponentialRampToValueAtTime(0.2, now + 0.1);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+
+    osc.connect(gain);
+    gain.connect(reverbNode);
+    gain.connect(masterGain);
+
+    osc.start(now);
+    osc.stop(now + 0.3);
+}
+
+/**
+ * YELLOW-GREEN - Violin (Melodic F5 698Hz)
+ */
+function playYellowGreenSound() {
+    initAudioContext();
+
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+
+    osc.type = 'triangle'; // String-like
+    osc.frequency.value = 698; // F5
+
+    const now = audioContext.currentTime;
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.35, now + 0.05); // Gentle attack
+    gain.gain.exponentialRampToValueAtTime(0.25, now + 0.3);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+
+    osc.connect(gain);
+    gain.connect(reverbNode);
+    gain.connect(masterGain);
+
+    osc.start(now);
+    osc.stop(now + 0.6);
+}
+
+/**
+ * GREEN - Middle violin (Balanced G4 392Hz)
+ */
+function playGreenSound() {
+    initAudioContext();
+
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.value = 392; // G4
+
+    const now = audioContext.currentTime;
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.3, now + 0.06);
+    gain.gain.exponentialRampToValueAtTime(0.25, now + 0.4);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.7);
+
+    osc.connect(gain);
+    gain.connect(reverbNode);
+    gain.connect(masterGain);
+
+    osc.start(now);
+    osc.stop(now + 0.7);
+}
+
+/**
+ * BLUE-GREEN - Cello (Deep, warm A3 220Hz)
+ */
+function playBlueGreenSound() {
+    initAudioContext();
+
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.value = 220; // A3
+
+    const now = audioContext.currentTime;
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.4, now + 0.08); // Slow cello attack
+    gain.gain.exponentialRampToValueAtTime(0.3, now + 0.5);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 1.0);
+
+    osc.connect(gain);
+    gain.connect(reverbNode);
+    gain.connect(masterGain);
+
+    osc.start(now);
+    osc.stop(now + 1.0);
+}
+
+/**
+ * CYAN - Flute (Ethereal, airy B5 988Hz)
+ */
+function playCyanSound() {
+    initAudioContext();
+
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+
+    osc.type = 'sine'; // Pure, flute-like
+    osc.frequency.value = 988; // B5
+
+    const now = audioContext.currentTime;
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.3, now + 0.04);
+    gain.gain.exponentialRampToValueAtTime(0.2, now + 0.3);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+
+    osc.connect(gain);
+    gain.connect(reverbNode);
+    gain.connect(masterGain);
+
+    osc.start(now);
+    osc.stop(now + 0.6);
+}
+
+/**
+ * BLUE - Organ, cello (Deep, spiritual C3 131Hz)
+ */
+function playBlueSound() {
+    initAudioContext();
+
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+
+    osc.type = 'sine'; // Organ-like pure tone
+    osc.frequency.value = 131; // C3
+
+    const now = audioContext.currentTime;
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.5, now + 0.1); // Slow organ swell
+    gain.gain.exponentialRampToValueAtTime(0.4, now + 0.6);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 1.2);
+
+    osc.connect(gain);
+    gain.connect(reverbNode);
+    gain.connect(masterGain);
+
+    osc.start(now);
+    osc.stop(now + 1.2);
+}
+
+/**
+ * VIOLET - Horn (Mystical D4 294Hz)
+ */
+function playVioletSound() {
+    initAudioContext();
+
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+
+    osc.type = 'sawtooth'; // Horn-like
+    osc.frequency.value = 294; // D4
+
+    const now = audioContext.currentTime;
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.4, now + 0.06);
+    gain.gain.exponentialRampToValueAtTime(0.25, now + 0.4);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
+
+    osc.connect(gain);
+    gain.connect(reverbNode);
+    gain.connect(masterGain);
+
+    osc.start(now);
+    osc.stop(now + 0.8);
+}
+
+/**
+ * MAGENTA - Synthesizer (Electric, modern E4 330Hz with modulation)
+ */
+function playMagentaSound() {
+    initAudioContext();
+
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    const lfo = audioContext.createOscillator(); // Low-frequency oscillator for modulation
+    const lfoGain = audioContext.createGain();
+
+    osc.type = 'square'; // Electronic synth
+    osc.frequency.value = 330; // E4
+
+    // Add vibrato/modulation for electric effect
+    lfo.type = 'sine';
+    lfo.frequency.value = 6; // 6Hz vibrato
+    lfoGain.gain.value = 15; // Modulation depth
+
+    lfo.connect(lfoGain);
+    lfoGain.connect(osc.frequency);
+
+    const now = audioContext.currentTime;
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.35, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.2, now + 0.3);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+
+    osc.connect(gain);
+    gain.connect(reverbNode);
+    gain.connect(masterGain);
+
+    osc.start(now);
+    lfo.start(now);
+    osc.stop(now + 0.6);
+    lfo.stop(now + 0.6);
+}
+
+/**
+ * WHITE - Pause, space (Soft sine A4 440Hz - pure reference)
+ */
+function playWhiteSound() {
+    initAudioContext();
+
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+
+    osc.type = 'sine'; // Pure reference tone
+    osc.frequency.value = 440; // A4 - concert pitch
+
+    const now = audioContext.currentTime;
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.25, now + 0.1);
+    gain.gain.exponentialRampToValueAtTime(0.15, now + 0.5);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 1.0);
+
+    osc.connect(gain);
+    gain.connect(reverbNode);
+    gain.connect(masterGain);
+
+    osc.start(now);
+    osc.stop(now + 1.0);
+}
+
+/**
+ * BLACK - End, silence (Deep sub-bass C2 65Hz)
+ */
+function playBlackSound() {
+    initAudioContext();
+
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+
+    osc.type = 'sine'; // Deep sub-bass
+    osc.frequency.value = 65; // C2
+
+    const now = audioContext.currentTime;
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.6, now + 0.15); // Slow, deep
+    gain.gain.exponentialRampToValueAtTime(0.4, now + 0.8);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 1.5);
+
+    osc.connect(gain);
+    gain.connect(reverbNode);
+    gain.connect(masterGain);
+
+    osc.start(now);
+    osc.stop(now + 1.5);
+}
+
+// ===== COLOR-TO-SOUND MAPPING =====
+
+const COLOR_SOUNDS = {
+    red: playRedSound,
+    orange: playOrangeSound,
+    yellow: playYellowSound,
+    yellowGreen: playYellowGreenSound,
+    green: playGreenSound,
+    blueGreen: playBlueGreenSound,
+    cyan: playCyanSound,
+    blue: playBlueSound,
+    violet: playVioletSound,
+    magenta: playMagentaSound,
+    white: playWhiteSound,
+    black: playBlackSound
+};
+
+// ===== PUBLIC API =====
+
+/**
+ * Play the synesthetic sound for a given color
+ * @param {string} colorKey - Key from COLORS object (e.g., 'red', 'blue')
+ */
+function playColorSound(colorKey) {
+    if (COLOR_SOUNDS[colorKey]) {
+        COLOR_SOUNDS[colorKey]();
+    } else {
+        console.warn(`No sound defined for color: ${colorKey}`);
+    }
+}
+
+/**
+ * Play a harmonic chord of the selected color (for final generation)
+ * @param {string} colorKey - Key from COLORS object
+ */
+function playGenerationSound(colorKey) {
+    if (COLOR_SOUNDS[colorKey]) {
+        // Play the main sound
+        COLOR_SOUNDS[colorKey]();
+
+        // Add a harmonic overtone after slight delay for richness
+        setTimeout(() => {
+            COLOR_SOUNDS[colorKey]();
+        }, 150);
+    }
+}
